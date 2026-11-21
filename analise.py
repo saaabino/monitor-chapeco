@@ -212,9 +212,33 @@ def frases_radar(radar):
     return [f.strip()]
 
 
-def montar(estado, raios, relatos, conjunto=None, radar=None):
+def frases_nuvens(nuvens, raios, ate_km=100):
+    """Nuvem crescendo rápido perto, ainda sem raios. Só informa: não muda o nível até o placar mostrar acerto."""
+    if not nuvens:
+        return []
+    celulas = (raios or {}).get("celulas", [])
+    novas = [g for g in nuvens.get("grupos", []) if g["dist_km"] <= ate_km and
+             not any(_km(g["lat"], g["lon"], c["lat"], c["lon"]) <= 30 for c in celulas)]
+    if not novas:
+        return []
+    g = novas[0]
+    f = (f"Satélite: nuvem crescendo rápido a {g['dist_km']} km ({_rumo(_azimute(g['lat'], g['lon']))}), "
+         f"topo a {g['topo_c']} °C e esfriando {g['esfriou_k']:.0f} °C em 10 min, ainda sem raios. "
+         f"Pode virar tempestade nos próximos 15 a 45 min.")
+    if len(novas) > 1:
+        f += f" Mais {len(novas) - 1} assim a até {ate_km} km."
+    return [f]
+
+
+def _km(la1, lo1, la2, lo2):
+    p = math.radians
+    return 2 * 6371 * math.asin(math.sqrt(math.sin(p(la2 - la1) / 2) ** 2 +
+                                          math.cos(p(la1)) * math.cos(p(la2)) * math.sin(p(lo2 - lo1) / 2) ** 2))
+
+
+def montar(estado, raios, relatos, conjunto=None, radar=None, nuvens=None):
     vivo, n1 = frases_ao_vivo(raios)
-    vivo = vivo + frases_radar(radar)
+    vivo = vivo + frases_nuvens(nuvens, raios) + frases_radar(radar)
     prev, n2 = frases_previsao(estado, conjunto)
     prev += frases_conjunto(conjunto, estado)
     ordem = ["calmo", "atencao", "critico"]

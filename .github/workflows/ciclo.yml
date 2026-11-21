@@ -50,7 +50,7 @@ jobs:
           cd dados
           rm -rf .git
           git init -q -b dados
-          for f in estado.json raios.json status.json alertas_enviados.json ambiente_eventos.json analise.json relatos.json telegram_offset.json conjunto.json previsoes.json observado.json avisos_log.json verificacao.json radar.json longo.json; do
+          for f in estado.json raios.json status.json alertas_enviados.json ambiente_eventos.json analise.json relatos.json telegram_offset.json conjunto.json previsoes.json observado.json avisos_log.json verificacao.json radar.json longo.json nuvens.json nuvens_log.json; do
             [ -f "$f" ] && git add -f "$f"
           done
           git -c user.name="monitor-bot" -c user.email="monitor-bot@users.noreply.github.com" commit -qm "dados $(date '+%Y-%m-%d %H:%M')"

@@ -33,6 +33,14 @@ def rodar():
         print(f"raios ok ({time.time() - t0:.0f}s)", flush=True)
     except Exception as e:
         erros.append(f"raios: {e}")
+    nuvens = None
+    f_nuv = os.path.join(motor.DADOS, "nuvens.json")
+    try:                                   # topo de nuvem esfriando: imagem nova a cada 10 min
+        import abi
+        nuvens = abi.calcular(raios=raios) if _idade_min(f_nuv) > 8 else json.load(open(f_nuv))
+        print(f"nuvens ok ({time.time() - t0:.0f}s)", flush=True)
+    except Exception as e:
+        erros.append(f"nuvens: {e}")
     try:
         if _idade_min(f_estado) > PREVISAO_MAX_MIN:
             estado = motor.calcular()
@@ -71,7 +79,7 @@ def rodar():
     analise = None
     try:
         import analise as an
-        analise = an.montar(estado, raios, relatos_lista, conjunto, radar)
+        analise = an.montar(estado, raios, relatos_lista, conjunto, radar, nuvens)
     except Exception as e:
         erros.append(f"análise: {e}")
     alerta.processar(estado, raios, analise)

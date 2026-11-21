@@ -212,6 +212,7 @@
           <span><i style="background:#fff"></i>raio há menos de 5 min</span>
           <span><i style="background:#f8a36f"></i>5 a 10 min</span>
           <span><i style="background:#b8441a"></i>10 a 20 min</span>
+          <span><i style="background:transparent;border:2px dashed #5cc8ff"></i>nuvem crescendo rápido, ainda sem raios</span>
         </div>
         <div class="mudo">Fundo: satélite infravermelho GOES-19, de cerca de 30 min atrás. Cinza é nuvem baixa ou céu limpo; verde, amarelo, vermelho e branco são topos de nuvem cada vez mais altos e frios. Círculos tracejados: 25, 50 e 100 km de Chapecó. Seta: para onde a tempestade vai na próxima hora.</div>
       </div>
@@ -306,6 +307,10 @@ const FEN = { microexplosao: "Microexplosão", tornado: "Tornado", vento: "Vento
 const NIVEL = { 0: ["baixo", "--bom"], 0.5: ["atenção", "--atencao"], 1: ["alto", "--critico"] };
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+function distKm(a, b) {
+  const r = Math.PI / 180, x = Math.sin((b[0] - a[0]) * r / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin((b[1] - a[1]) * r / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(x));
+}
 const ROSA = ["norte","nordeste","leste","sudeste","sul","sudoeste","oeste","noroeste"];
 const rumo = g => ROSA[Math.floor(((g + 22.5) % 360) / 45)];
 function azimute(a, b) {
@@ -335,7 +340,7 @@ const cVivo = L.layerGroup(), cProj = L.layerGroup(), cAneis = L.layerGroup().ad
 [25, 50, 100].forEach(r => L.circle(CENTRO, { radius: r * 1000, color: "#8494a3", weight: 1, dashArray: "4 4", fill: false, interactive: false }).addTo(cAneis));
 L.circleMarker(CENTRO, { radius: 5, color: "#fff", weight: 2, fillColor: "#3987e5", fillOpacity: 1 }).bindTooltip("Chapecó").addTo(cAneis);
 
-let estado = null, raios = null, status = null, analise = null, relatos = [], conjunto = null, verif = null, radar = null, radarLigado = true, radarQuadro = 0, radarCamada = null, modo = "vivo", camada = "chuva", hora = 0, tocando = null;
+let nuvens = null, estado = null, raios = null, status = null, analise = null, relatos = [], conjunto = null, verif = null, radar = null, radarLigado = true, radarQuadro = 0, radarCamada = null, modo = "vivo", camada = "chuva", hora = 0, tocando = null;
 
 // ---------- ao vivo ----------
 function desenharVivo() {
@@ -344,6 +349,12 @@ function desenharVivo() {
   for (const [la, lo, a] of raios.raios) {
     const c = a < 5 ? "#ffffff" : a < 10 ? "#f8a36f" : "#b8441a";
     L.circleMarker([la, lo], { radius: a < 5 ? 2.5 : 2, stroke: false, fillColor: c, fillOpacity: 0.9, interactive: false }).addTo(cVivo);
+  }
+  // nuvem crescendo rápido (topo esfriando no satélite), ainda sem raios perto
+  for (const g of (nuvens && nuvens.grupos) || []) {
+    if (raios.celulas.some(c => distKm([g.lat, g.lon], [c.lat, c.lon]) <= 30)) continue;
+    L.circle([g.lat, g.lon], { radius: 9000 + g.caixas * 1500, color: "#5cc8ff", weight: g.forte ? 2.5 : 1.5, dashArray: "4 5", fillOpacity: 0.06 })
+      .bindTooltip(`<b>Nuvem crescendo rápido</b><br>${g.dist_km} km de Chapecó<br>topo ${g.topo_c} °C, esfriou ${Math.round(g.esfriou_k)} °C em 10 min<br>ainda sem raios`).addTo(cVivo);
   }
   for (const c of raios.celulas) {
     const p = [c.lat, c.lon], cor = c.chega_min != null ? css("--critico") : c.salto ? css("--atencao") : "#f0efec";
@@ -691,16 +702,17 @@ async function pegar(nome) {
 
 async function carregar() {
   const erros = [];
-  const [e, r, s, a, rl, cj, vf, rd, lg] = await Promise.allSettled([pegar("estado.json"), pegar("raios.json"), pegar("status.json"), pegar("analise.json"), pegar("relatos.json"), pegar("conjunto.json"), pegar("verificacao.json"), pegar("radar.json"), pegar("longo.json")]);
+  const [e, r, s, a, rl, cj, vf, rd, lg, nv] = await Promise.allSettled([pegar("estado.json"), pegar("raios.json"), pegar("status.json"), pegar("analise.json"), pegar("relatos.json"), pegar("conjunto.json"), pegar("verificacao.json"), pegar("radar.json"), pegar("longo.json"), pegar("nuvens.json")]);
   if (rd.status === "fulfilled") { radar = rd.value; montarRadar(); }
   if (cj.status === "fulfilled") conjunto = cj.value;
+  nuvens = nv.status === "fulfilled" ? nv.value : null;
   if (lg.status === "fulfilled") { longo = lg.value; desenharLongo(); }
   if (vf.status === "fulfilled") verif = vf.value;
   if (a.status === "fulfilled") analise = a.value;
   if (rl.status === "fulfilled") relatos = rl.value;
   // só raios e previsão são essenciais; falha de radar, aeroporto etc. aparece no lugar certo, sem susto
   const NOMES_FONTE = { raios: "raios do satélite", "previsão": "previsão dos modelos", radar: "radar da Defesa Civil",
-    METAR: "estação do aeroporto", conjunto: "chances por conjunto", relatos: "relatos do Telegram", "15 dias": "previsão de 15 dias", "análise": "análise", "verificação": "placar de acerto" };
+    METAR: "estação do aeroporto", conjunto: "chances por conjunto", relatos: "relatos do Telegram", "15 dias": "previsão de 15 dias", nuvens: "satélite de nuvens", "análise": "análise", "verificação": "placar de acerto" };
   if (e.status === "fulfilled") estado = e.value; else erros.push("previsão");
   if (r.status === "fulfilled") raios = r.value; else erros.push("raios");
   const secundarias = [];
