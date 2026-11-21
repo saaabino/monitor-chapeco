@@ -40,7 +40,7 @@ jobs:
           fi
 
       - name: Rodar ciclo (raios, previsão, avisos)
-        run: python ciclo.py
+        run: python -u ciclo.py
 
       - name: Publicar dados (branch dados, um commit só)
         if: always()

@@ -30,7 +30,7 @@ ESCALA = {"cape": 1000, "te": 10, "shear06": 10, "shear01": 5, "rajada": 30}
 
 def _get(url, params):
     q = urllib.parse.urlencode(params, safe=",")
-    with urllib.request.urlopen(f"{url}?{q}", timeout=180) as r:
+    with urllib.request.urlopen(f"{url}?{q}", timeout=60) as r:
         return json.load(r)
 
 
