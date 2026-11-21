@@ -1,0 +1,55 @@
+name: ciclo
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # a cada 10 min (o GitHub pode atrasar alguns minutos)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ciclo
+  cancel-in-progress: false
+
+jobs:
+  rodar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TZ: America/Sao_Paulo
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      SITE_URL: ${{ vars.SITE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Trazer dados da rodada anterior (branch dados)
+        run: |
+          mkdir -p dados
+          if git fetch -q --depth=1 origin dados; then
+            git --work-tree=dados checkout FETCH_HEAD -- .
+            git reset -q
+          fi
+
+      - name: Rodar ciclo (raios, previsão, avisos)
+        run: python ciclo.py
+
+      - name: Publicar dados (branch dados, um commit só)
+        if: always()
+        run: |
+          cd dados
+          rm -rf .git
+          git init -q -b dados
+          for f in estado.json raios.json status.json alertas_enviados.json ambiente_eventos.json; do
+            [ -f "$f" ] && git add -f "$f"
+          done
+          git -c user.name="monitor-bot" -c user.email="monitor-bot@users.noreply.github.com" commit -qm "dados $(date '+%Y-%m-%d %H:%M')"
+          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" dados
