@@ -12,6 +12,7 @@ Saída: dados/radar.json
 import json
 import math
 import os
+import ssl
 import struct
 import urllib.request
 import zlib
@@ -27,8 +28,15 @@ EXTENSAO = (-55.0710069, -29.2106056, -50.1335368, -24.8625699)
 UA = {"User-Agent": "Mozilla/5.0 (monitor-chapeco)"}
 
 
+# O servidor da Defesa Civil não manda os certificados intermediários da Let's Encrypt.
+# Eles vão junto em certs/sifap-cadeia.pem (YR2 e Root YR, assinado pela ISRG Root X1).
+# A verificação continua ligada: só completamos a cadeia que o servidor deixou de mandar.
+_SSL = ssl.create_default_context()
+_SSL.load_verify_locations(os.path.join(AQUI, "certs", "sifap-cadeia.pem"))
+
+
 def _get(url):
-    with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=40) as r:
+    with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=40, context=_SSL) as r:
         return r.read()
 
 

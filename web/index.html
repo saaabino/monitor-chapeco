@@ -6,115 +6,229 @@
 <title>Monitor Chapecó</title>
 <meta name="description" content="Tempestades ao vivo, raios, chuva e risco de microexplosão e tornado na região de Chapecó.">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
     color-scheme: dark;
-    --bg:#121211; --card:#1a1a19; --borda:#2e2e2b; --txt:#f0efec; --sub:#c3c2b7; --mudo:#8f8e86;
-    --acento:#3987e5; --chuva:#3987e5; --rajada:#d95926;
+    --bg:#0a0e13; --plano:#0f151c; --plano-2:#141c25; --linha:#1d2732; --linha-forte:#2a3644;
+    --txt:#e9eef3; --sub:#aab7c3; --mudo:#8494a3;
+    --acento:#4aa3ff; --acento-fundo:#12304d;
+    --chuva:#3987e5; --rajada:#d95926;
     --bom:#0ca30c; --atencao:#fab219; --serio:#ec835a; --critico:#d03b3b;
+    --raio:16px; --r-peq:8px;
+    --fonte:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --sombra:0 8px 24px rgba(0,0,0,.35);
   }
   * { box-sizing:border-box; }
-  body { margin:0; font:15px/1.45 system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--txt); }
-  header { padding:10px 16px; display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; border-bottom:1px solid var(--borda); }
-  h1 { font-size:18px; margin:0; }
+  html { -webkit-text-size-adjust:100%; }
+  body { margin:0; font:15px/1.5 var(--fonte); background:var(--bg); color:var(--txt); overflow-x:hidden; }
+  ::selection { background:var(--acento); color:#04101d; }
+  * { scrollbar-width:thin; scrollbar-color:var(--linha-forte) transparent; }
+  :focus-visible { outline:2px solid var(--acento); outline-offset:2px; border-radius:6px; }
+  a { color:var(--acento); text-underline-offset:3px; }
+  code { font-size:.92em; background:var(--plano-2); border:1px solid var(--linha); border-radius:6px; padding:1px 6px; }
+  .num { font-variant-numeric:tabular-nums; }
   .sub { color:var(--sub); font-size:13px; }
-  .mudo { color:var(--mudo); font-size:12px; }
-  .abas { display:flex; gap:6px; margin-left:auto; }
-  button { background:var(--card); color:var(--txt); border:1px solid var(--borda); border-radius:8px; padding:7px 12px; font:inherit; cursor:pointer; }
-  button.on { border-color:var(--acento); background:#16324a; }
-  .faixa-aviso { padding:10px 16px; font-weight:600; border-bottom:1px solid var(--borda); }
-  .faixa-aviso.critico { background:#4a1717; } .faixa-aviso.atencao { background:#3d3210; } .faixa-aviso.calmo { background:#132a13; font-weight:500; }
-  .analise { padding:8px 16px 10px; border-bottom:1px solid var(--borda); font-size:14px; }
-  .analise b { color:var(--sub); font-size:12px; text-transform:uppercase; letter-spacing:.04em; margin-right:6px; }
-  .analise div { margin:2px 0; }
-  .erro { background:#4a1717; padding:8px 16px; display:none; }
-  main { display:grid; grid-template-columns:1fr 380px; height:calc(100vh - 100px); min-height:520px; }
-  #mapa { height:100%; min-height:420px; background:#0b0b0a; }
-  aside { overflow:auto; padding:12px 16px; border-left:1px solid var(--borda); }
-  @media (max-width:860px) { main { display:block; height:auto; } aside { width:100%; } #mapa { height:58vh; } aside { border-left:0; } .abas { margin-left:0; } }
-  h2 { font-size:13px; margin:18px 0 6px; color:var(--sub); text-transform:uppercase; letter-spacing:.04em; }
-  .grupo { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px; }
-  .cel { border:1px solid var(--borda); border-radius:8px; padding:8px 10px; margin:6px 0; background:var(--card); cursor:pointer; }
-  .cel b { font-size:15px; }
-  .tag { display:inline-block; padding:1px 7px; border-radius:10px; font-size:12px; color:#111; margin-right:4px; }
-  .legenda { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:12px; color:var(--sub); margin:6px 0; }
-  .legenda i { display:inline-block; width:12px; height:12px; border-radius:2px; margin-right:4px; vertical-align:-2px; }
-  .slider { display:flex; align-items:center; gap:8px; }
+  .mudo { color:var(--mudo); font-size:13px; line-height:1.5; }
+
+  /* topo */
+  header { display:flex; align-items:center; gap:10px 16px; flex-wrap:wrap; padding:12px 20px; background:var(--plano); border-bottom:1px solid var(--linha); }
+  .marca { display:flex; align-items:center; gap:10px; }
+  .marca svg { width:26px; height:26px; flex:none; }
+  h1 { font-size:21px; font-weight:700; letter-spacing:-.015em; margin:0; }
+  .frescor { display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:var(--sub); padding:4px 10px; border:1px solid var(--linha); border-radius:999px; font-variant-numeric:tabular-nums; }
+  .frescor i { width:7px; height:7px; border-radius:50%; background:var(--mudo); }
+  .frescor.vivo i { background:var(--bom); animation:pulso 2s ease-out infinite; }
+  .frescor.velho i { background:var(--atencao); }
+  @keyframes pulso { 0% { box-shadow:0 0 0 0 rgba(12,163,12,.55); } 100% { box-shadow:0 0 0 7px rgba(12,163,12,0); } }
+  .abas { display:inline-flex; margin-left:auto; padding:3px; background:var(--bg); border:1px solid var(--linha); border-radius:10px; }
+  .abas button { border:0; background:transparent; color:var(--sub); padding:6px 14px; border-radius:7px; font-weight:600; }
+  .abas button.on { background:var(--plano-2); color:var(--txt); box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 2px 6px rgba(0,0,0,.4); }
+
+  /* situação */
+  .situacao { padding:16px 20px 14px; border-bottom:1px solid var(--linha); background:var(--plano); transition:background-color .25s ease-out; }
+  .situacao.critico { background:linear-gradient(0deg, rgba(208,59,59,.10), rgba(208,59,59,.22)), var(--plano); }
+  .situacao.atencao { background:linear-gradient(0deg, rgba(250,178,25,.05), rgba(250,178,25,.12)), var(--plano); }
+  .manchete { display:flex; align-items:flex-start; gap:12px; font-size:21px; font-weight:600; line-height:1.35; letter-spacing:-.01em; margin:0; text-wrap:balance; max-width:72ch; }
+  .manchete .ponto { flex:none; width:12px; height:12px; margin-top:7px; border-radius:50%; background:var(--bom); }
+  .situacao.atencao .ponto { background:var(--atencao); }
+  .situacao.critico .ponto { background:var(--critico); animation:alerta 1.2s ease-out infinite; }
+  @keyframes alerta { 0% { box-shadow:0 0 0 0 rgba(208,59,59,.7); } 100% { box-shadow:0 0 0 10px rgba(208,59,59,0); } }
+  .analise { display:grid; grid-template-columns:auto 1fr; gap:4px 14px; margin:12px 0 0 24px; font-size:14px; color:var(--sub); max-width:110ch; }
+  .analise dt { color:var(--mudo); font-size:12.5px; font-weight:600; padding-top:2px; }
+  .analise dd { margin:0; }
+  .analise .rodape { grid-column:1 / -1; color:var(--mudo); font-size:12px; margin-top:4px; }
+  .carregando { color:var(--mudo); }
+  .erro { display:none; background:#2a1214; color:#ffd8d6; border-bottom:1px solid #4a1d20; padding:10px 20px; font-size:14px; }
+
+  /* corpo */
+  main { display:grid; grid-template-columns:minmax(0,1fr) 400px; }
+  @media (min-width:861px) { body { display:flex; flex-direction:column; height:100dvh; } main { flex:1; min-height:0; } }
+  #mapa { height:100%; min-height:420px; background:#070a0e; }
+  aside { overflow:auto; background:var(--plano); border-left:1px solid var(--linha); }
+  aside section > .bloco, aside > .bloco { padding:16px 20px; border-bottom:1px solid var(--linha); }
+  h2 { font-size:16.5px; font-weight:600; color:var(--txt); margin:0 0 10px; letter-spacing:-.01em; }
+  h2 small { font-weight:400; color:var(--mudo); font-size:12.5px; margin-left:6px; }
+  .grupo { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
+  button { font:inherit; font-size:14px; color:var(--txt); background:var(--plano-2); border:1px solid var(--linha-forte); border-radius:var(--r-peq); padding:7px 12px; cursor:pointer; transition:background-color .15s ease-out, border-color .15s ease-out; min-height:36px; }
+  button:hover { border-color:#3a4a5c; background:#18222d; }
+  button:active { transform:translateY(1px); }
+  button.on { background:var(--acento-fundo); border-color:var(--acento); color:#dceeff; }
+  .icone { display:inline-flex; align-items:center; justify-content:center; width:38px; padding:0; }
+  .icone svg { width:16px; height:16px; fill:currentColor; }
+  .legenda { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12.5px; color:var(--sub); margin:8px 0 0; }
+  .legenda i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+  .lista { margin:0; padding:0; list-style:none; }
+  .lista li { display:grid; grid-template-columns:64px 1fr; gap:2px 12px; padding:11px 8px; margin:0 -8px; border-top:1px solid var(--linha); cursor:pointer; border-radius:var(--r-peq); transition:background-color .15s ease-out; }
+  .lista li:first-child { border-top:0; }
+  .lista li:hover { background:var(--plano-2); }
+  .lista .dist { font-size:20px; font-weight:700; line-height:1.1; font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+  .lista .dist small { display:block; font-size:11.5px; font-weight:500; color:var(--mudo); letter-spacing:0; }
+  .lista .info { font-size:13.5px; color:var(--sub); }
+  .lista .info b { color:var(--txt); font-weight:600; }
+  .chip { display:inline-block; font-size:11.5px; font-weight:600; padding:2px 8px; border-radius:999px; margin:0 6px 4px 0; color:#160b00; }
+  .slider { display:flex; align-items:center; gap:10px; margin:2px 0 6px; }
   .slider input { flex:1; accent-color:var(--acento); }
-  .grafico { position:relative; }
-  .grafico svg { width:100%; height:90px; display:block; }
-  .grafico rect.b:hover { opacity:.75; }
-  .dica { position:absolute; pointer-events:none; background:#000c; border:1px solid var(--borda); border-radius:6px; padding:3px 7px; font-size:12px; display:none; white-space:nowrap; }
-  .linha-txt { margin:4px 0; font-size:14px; }
-  a { color:var(--acento); }
-  .leaflet-tooltip { font-size:12px; max-width:280px; white-space:normal; }
-  .base-escura { filter: invert(1) hue-rotate(180deg) brightness(.75) contrast(.9); }
-  main > * { min-width:0; } body { overflow-x:hidden; }
-  .rotulo-cel { background:transparent; border:0; box-shadow:none; color:#fff; font-weight:700; text-shadow:0 0 3px #000, 0 0 3px #000; }
+  #hora-txt { font-variant-numeric:tabular-nums; min-width:118px; text-align:right; }
+  .grafico { position:relative; margin-bottom:14px; }
+  .grafico svg { width:100%; height:90px; display:block; overflow:visible; }
+  .grafico rect.b { transition:opacity .15s; } .grafico rect.b:hover { opacity:.75; }
+  .dica { position:absolute; top:-6px; pointer-events:none; background:#05080c; border:1px solid var(--linha-forte); border-radius:6px; padding:3px 8px; font-size:12px; display:none; white-space:nowrap; font-variant-numeric:tabular-nums; box-shadow:var(--sombra); }
+  .linha-txt { margin:0 0 6px; font-size:14px; color:var(--sub); }
+  .linha-txt:first-child { color:var(--txt); }
+
+  /* mapa */
+  .base-escura { filter:invert(1) hue-rotate(180deg) brightness(.72) contrast(.92) saturate(.6); }
+  .leaflet-container { font:inherit; background:#070a0e; }
+  .leaflet-bar { border:1px solid var(--linha-forte) !important; box-shadow:var(--sombra) !important; border-radius:10px !important; overflow:hidden; }
+  .leaflet-bar a { background:var(--plano-2); color:var(--txt); border-bottom-color:var(--linha) !important; width:34px !important; height:34px !important; line-height:34px !important; }
+  .leaflet-bar a:hover { background:#1b2633; color:#fff; }
+  .leaflet-control-attribution { background:rgba(10,14,19,.75) !important; color:var(--mudo); font-size:10.5px; }
+  .leaflet-control-attribution a { color:var(--sub); }
+  .leaflet-tooltip, .leaflet-popup-content-wrapper, .leaflet-popup-tip { background:#0b1016; color:var(--txt); border:1px solid var(--linha-forte); box-shadow:var(--sombra); }
+  .leaflet-tooltip { font-size:12.5px; max-width:280px; white-space:normal; border-radius:8px; padding:6px 9px; }
+  .leaflet-tooltip-top:before { border-top-color:var(--linha-forte); }
+  .leaflet-popup-content-wrapper { border-radius:10px; }
+  .leaflet-popup-content { margin:10px 14px; font-size:13px; line-height:1.45; }
+  .leaflet-container a.leaflet-popup-close-button { color:var(--sub); }
+  .rotulo-cel { background:var(--critico) !important; border:0 !important; color:#fff !important; font-weight:700; font-variant-numeric:tabular-nums; padding:2px 8px !important; border-radius:999px !important; }
+  .rotulo-cel:before { display:none; }
+  .pino-relato svg { width:24px; height:24px; filter:drop-shadow(0 2px 3px rgba(0,0,0,.6)); }
+
+  @media (max-width:860px) {
+    header { padding:10px 14px; }
+    .abas { order:3; margin:0; width:100%; } .abas button { flex:1; }
+    .situacao { padding:14px 16px 12px; }
+    .manchete { font-size:18px; }
+    h1 { font-size:18px; }
+    .analise { margin-left:0; grid-template-columns:1fr; gap:0; }
+    .analise dt { margin-top:8px; }
+    main { display:block; height:auto; }
+    #mapa { height:56vh; min-height:320px; }
+    aside { border-left:0; }
+    aside section > .bloco, aside > .bloco { padding:14px 16px; }
+  }
+  @media (prefers-reduced-motion:reduce) { *, *:before, *:after { animation:none !important; transition:none !important; } }
 </style>
 </head>
 <body>
 <header>
-  <h1>Monitor Chapecó</h1>
-  <span class="sub" id="horarios">carregando…</span>
-  <div class="abas"><button id="aba-vivo" class="on">Ao vivo</button><button id="aba-proj">Projeção</button></div>
+  <div class="marca">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="none" stroke="#2a3644" stroke-width="2"/><circle cx="16" cy="16" r="8.5" fill="none" stroke="#2a3644" stroke-width="2"/><path d="M16 16 L16 2 A14 14 0 0 1 28.1 9 Z" fill="#4aa3ff" opacity=".85"/><circle cx="16" cy="16" r="2.4" fill="#e9eef3"/><circle cx="23" cy="8.6" r="1.8" fill="#fab219"/></svg>
+    <h1>Monitor Chapecó</h1>
+  </div>
+  <span class="frescor" id="frescor"><i></i><span id="horarios">carregando…</span></span>
+  <div class="abas" role="tablist" aria-label="Modo do painel">
+    <button id="aba-vivo" class="on" role="tab" aria-selected="true">Ao vivo</button>
+    <button id="aba-proj" role="tab" aria-selected="false">Projeção</button>
+  </div>
 </header>
-<div class="faixa-aviso calmo" id="faixa">…</div>
-<div class="analise" id="analise"></div>
-<div class="erro" id="erro"></div>
+<section class="situacao calmo" id="situacao" aria-live="polite">
+  <p class="manchete"><span class="ponto" aria-hidden="true"></span><span id="faixa">Carregando a situação de agora…</span></p>
+  <dl class="analise" id="analise"><dd class="carregando">Juntando raios, radar e previsão…</dd></dl>
+</section>
+<div class="erro" id="erro" role="alert"></div>
 <main>
-  <div id="mapa"></div>
+  <div id="mapa" aria-label="Mapa da região de Chapecó"></div>
   <aside>
     <!-- AO VIVO -->
     <section id="painel-vivo">
-      <div class="legenda">
-        <span><i style="background:#fff"></i>raio &lt; 5 min</span>
-        <span><i style="background:#f8a36f"></i>5–10 min</span>
-        <span><i style="background:#b8441a"></i>10–20 min</span>
+      <div class="bloco">
+        <h2>Tempestades a até 300 km <small>pelos raios do satélite</small></h2>
+        <ul class="lista" id="lista-cel"></ul>
       </div>
-      <div class="mudo">Fundo: satélite infravermelho GOES-19, ~30 min atrás. Cinza = nuvem baixa ou céu limpo; verde, amarelo, vermelho e branco = topo de nuvem cada vez mais alto e frio (tempestade forte). Círculos: 25, 50 e 100 km de Chapecó. Seta: para onde a tempestade vai na próxima hora.</div>
-      <h2>Radar de Chapecó</h2>
-      <div class="grupo"><button id="bt-radar" class="on">Radar ligado</button><span id="radar-txt" class="mudo" style="align-self:center"></span></div>
-      <div class="mudo">Defesa Civil SC / Epagri-Ciram. Verde = chuva, amarelo/laranja = chuva muito forte. As imagens às vezes chegam com atraso.</div>
-      <h2>Tempestades a até 300 km</h2>
-      <div id="lista-cel"></div>
-      <h2>Mande um relato</h2>
-      <p class="mudo">No Telegram, fale com <a href="https://t.me/Tempocco_bot" target="_blank" rel="noopener">@Tempocco_bot</a>:
-      <code>/relato o que você viu</code> e depois a localização. O Jev (IA da TypeSafe) lê o texto e o código classifica.
-      Relatos aparecem no mapa como 📣 por 48 h. O texto vai para a TypeSafe; o painel não mostra texto nem nome.</p>
-      <h2>Como ler</h2>
-      <p class="mudo">As tempestades são achadas pelos raios do satélite. A velocidade vem de quanto o grupo de raios andou em 10 min, e pode errar quando a tempestade muda de forma.
-      "Salto de raios" = a taxa de raios dobrou, sinal comum antes de vento forte e granizo.
-      O radar ainda só aparece no mapa e na análise; o aviso de "chega em X min" usa os raios. Microexplosão dura minutos e pode acontecer sem aviso.</p>
+      <div class="bloco">
+        <h2>Radar de Chapecó</h2>
+        <div class="grupo" style="align-items:center"><button id="bt-radar" class="on">Radar ligado</button><span id="radar-txt" class="sub num"></span></div>
+        <div class="mudo">Defesa Civil SC / Epagri-Ciram. Verde é chuva; amarelo e laranja, chuva muito forte. As imagens às vezes chegam com atraso.</div>
+      </div>
+      <div class="bloco">
+        <h2>Legenda do mapa</h2>
+        <div class="legenda" style="margin:0 0 8px">
+          <span><i style="background:#fff"></i>raio há menos de 5 min</span>
+          <span><i style="background:#f8a36f"></i>5 a 10 min</span>
+          <span><i style="background:#b8441a"></i>10 a 20 min</span>
+        </div>
+        <div class="mudo">Fundo: satélite infravermelho GOES-19, de cerca de 30 min atrás. Cinza é nuvem baixa ou céu limpo; verde, amarelo, vermelho e branco são topos de nuvem cada vez mais altos e frios. Círculos tracejados: 25, 50 e 100 km de Chapecó. Seta: para onde a tempestade vai na próxima hora.</div>
+      </div>
+      <div class="bloco">
+        <h2>Mande um relato</h2>
+        <p class="mudo" style="margin:0">No Telegram, fale com <a href="https://t.me/Tempocco_bot" target="_blank" rel="noopener">@Tempocco_bot</a>: <code>/relato o que você viu</code> e depois a localização. O Jev (IA da TypeSafe) lê o texto e o código classifica. O relato aparece no mapa por 48 h. O texto vai para a TypeSafe; o painel não mostra texto nem nome.</p>
+      </div>
+      <div class="bloco">
+        <h2>Como ler</h2>
+        <p class="mudo" style="margin:0">As tempestades são achadas pelos raios do satélite. A velocidade vem de quanto o grupo de raios andou em 10 min e pode errar quando a tempestade muda de forma. "Salto de raios" quer dizer que a taxa de raios dobrou, sinal comum antes de vento forte e granizo. O radar aparece no mapa e na análise; o aviso de "chega em X min" usa os raios. Microexplosão dura minutos e pode acontecer sem aviso.</p>
+      </div>
     </section>
 
     <!-- PROJEÇÃO -->
     <section id="painel-proj" hidden>
-      <div class="grupo" id="g-camada"></div>
-      <div class="slider"><button id="play">▶</button><input type="range" id="hora" min="0" max="47" value="0"><span id="hora-txt" class="sub"></span></div>
-      <div class="legenda" id="legenda-proj"></div>
-      <h2>Chapecó: o que vem</h2>
-      <div id="textos-proj"></div>
-      <h2>Chuva prevista (mm/h, mediana de 3 modelos)</h2>
-      <div class="grafico" id="g-chuva"></div>
-      <h2>Rajada prevista (km/h)</h2>
-      <div class="grafico" id="g-rajada"></div>
-      <h2>Chance de chuva forte ≥5 mm/h (%, 122 versões dos modelos)</h2>
-      <div class="grafico" id="g-chance-chuva"></div>
-      <h2>Chance de rajada ≥60 km/h (%)</h2>
-      <div class="grafico" id="g-chance-rajada"></div>
-      <div class="mudo">Rajada de tempestade costuma ser mais forte que a dos modelos; a chance de vento subestima microexplosão.</div>
-      <h2>Risco por hora</h2>
-      <div id="risco-horas"></div>
-      <h2>Dias do passado mais parecidos (próx. 24h)</h2>
-      <div id="analogos" class="mudo"></div>
-      <h2>Acerto até agora</h2>
-      <div id="acerto" class="mudo"></div>
+      <div class="bloco">
+        <div class="grupo" id="g-camada"></div>
+        <div class="slider">
+          <button id="play" class="icone" aria-label="Animar as próximas 48 horas"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg></button>
+          <input type="range" id="hora" min="0" max="47" value="0" aria-label="Hora da projeção">
+          <span id="hora-txt" class="sub"></span>
+        </div>
+        <div class="legenda" id="legenda-proj"></div>
+      </div>
+      <div class="bloco">
+        <h2>Chapecó: o que vem</h2>
+        <div id="textos-proj"></div>
+      </div>
+      <div class="bloco">
+        <h2>Chuva prevista <small>mm/h, mediana de 3 modelos</small></h2>
+        <div class="grafico" id="g-chuva"></div>
+        <h2>Chance de chuva forte <small>≥5 mm/h, 122 versões dos modelos</small></h2>
+        <div class="grafico" id="g-chance-chuva"></div>
+      </div>
+      <div class="bloco">
+        <h2>Rajada prevista <small>km/h</small></h2>
+        <div class="grafico" id="g-rajada"></div>
+        <h2>Chance de rajada ≥60 km/h</h2>
+        <div class="grafico" id="g-chance-rajada"></div>
+        <div class="mudo">Rajada de tempestade costuma ser mais forte que a dos modelos; a chance de vento subestima microexplosão.</div>
+      </div>
+      <div class="bloco">
+        <h2>Risco por hora</h2>
+        <div id="risco-horas"></div>
+      </div>
+      <div class="bloco">
+        <h2>Dias do passado mais parecidos <small>próximas 24 h</small></h2>
+        <div id="analogos" class="sub"></div>
+      </div>
+      <div class="bloco">
+        <h2>Acerto até agora</h2>
+        <div id="acerto" class="sub"></div>
+      </div>
     </section>
 
-    <h2>Importante</h2>
-    <p class="mudo">Projeto pessoal, não é previsão oficial. Siga a <a href="https://www.defesacivil.sc.gov.br/" target="_blank" rel="noopener">Defesa Civil de SC</a> (alerta por SMS: mande seu CEP para 40199).
-    Dados: NOAA GOES-19 (raios), NASA GIBS (satélite), radar Defesa Civil SC / Epagri-Ciram, Open-Meteo (ECMWF, GFS, ICON), eventos da Wikipédia e notícias.</p>
+    <div class="bloco">
+      <h2>Importante</h2>
+      <p class="mudo" style="margin:0">Projeto pessoal, não é previsão oficial. Siga a <a href="https://www.defesacivil.sc.gov.br/" target="_blank" rel="noopener">Defesa Civil de SC</a> (alerta por SMS: mande seu CEP para 40199). Dados: NOAA GOES-19 (raios), NASA GIBS (satélite), radar Defesa Civil SC / Epagri-Ciram, Open-Meteo (ECMWF, GFS, ICON), eventos da Wikipédia e notícias.</p>
+    </div>
   </aside>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -153,7 +267,7 @@ function horaSatelite() {
 const satUrl = () => `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GOES-East_ABI_Band13_Clean_Infrared/default/${horaSatelite()}/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png`;
 const satelite = L.tileLayer(satUrl(), { maxNativeZoom: 6, maxZoom: 12, opacity: 0.5, attribution: "NASA GIBS / GOES-19" });
 const cVivo = L.layerGroup(), cProj = L.layerGroup(), cAneis = L.layerGroup().addTo(mapa), cRelatos = L.layerGroup().addTo(mapa);
-[25, 50, 100].forEach(r => L.circle(CENTRO, { radius: r * 1000, color: "#8f8e86", weight: 1, dashArray: "4 4", fill: false, interactive: false }).addTo(cAneis));
+[25, 50, 100].forEach(r => L.circle(CENTRO, { radius: r * 1000, color: "#8494a3", weight: 1, dashArray: "4 4", fill: false, interactive: false }).addTo(cAneis));
 L.circleMarker(CENTRO, { radius: 5, color: "#fff", weight: 2, fillColor: "#3987e5", fillOpacity: 1 }).bindTooltip("Chapecó").addTo(cAneis);
 
 let estado = null, raios = null, status = null, analise = null, relatos = [], conjunto = null, verif = null, radar = null, radarLigado = true, radarQuadro = 0, radarCamada = null, modo = "vivo", camada = "chuva", hora = 0, tocando = null;
@@ -192,35 +306,39 @@ function textoCel(c) {
 
 function listaVivo() {
   const el = document.getElementById("lista-cel");
-  if (!raios) { el.innerHTML = '<div class="mudo">Sem dados de raios.</div>'; return; }
-  if (!raios.celulas.length) { el.innerHTML = '<div class="mudo">Nenhuma tempestade com raios nos últimos 20 min.</div>'; return; }
+  if (!raios) { el.innerHTML = '<li class="mudo" style="display:block;cursor:default">Sem dados de raios nesta rodada. Isso não quer dizer céu limpo.</li>'; return; }
+  if (!raios.celulas.length) { el.innerHTML = '<li class="mudo" style="display:block;cursor:default">Nenhuma tempestade com raios nos últimos 20 min. O satélite continua olhando.</li>'; return; }
   el.innerHTML = "";
   for (const c of raios.celulas.slice(0, 12)) {
-    const d = document.createElement("div"); d.className = "cel";
-    const tags = (c.chega_min != null ? `<span class="tag" style="background:${css("--critico")};color:#fff">vem pra cá</span>` : "")
-      + (c.salto ? `<span class="tag" style="background:${css("--atencao")}">salto de raios</span>` : "");
-    d.innerHTML = (tags ? tags + "<br>" : "") + textoCel(c);
-    d.onclick = () => mapa.setView([c.lat, c.lon], 9);
-    el.appendChild(d);
+    const li = document.createElement("li"); li.tabIndex = 0;
+    const de = rumo(azimute(CENTRO, [c.lat, c.lon]));
+    const chips = (c.chega_min != null ? `<span class="chip" style="background:${css("--critico")};color:#fff">${c.chega_min === 0 ? "sobre Chapecó" : "chega em ~" + c.chega_min + " min"}</span>` : "")
+      + (c.salto ? `<span class="chip" style="background:${css("--atencao")}">salto de raios</span>` : "");
+    let info = `<b>${de[0].toUpperCase() + de.slice(1)}</b> · ${c.raios_por_min} raios/min <span class="mudo">(antes ${c.raios_por_min_antes})</span>`;
+    if (c.vel_kmh) info += `<br>indo para ${rumo(c.rumo)} a ${c.vel_kmh} km/h`;
+    if (c.chega_min == null && c.passa_a_km != null) info += ` · passa a ~${c.passa_a_km} km`;
+    li.innerHTML = `<div class="dist">${c.dist_km}<small>km</small></div><div class="info">${chips ? chips + "<br>" : ""}${info}</div>`;
+    li.onclick = li.onkeydown = ev => { if (ev.type === "click" || ev.key === "Enter") mapa.setView([c.lat, c.lon], 9); };
+    el.appendChild(li);
   }
 }
 
 function faixaAviso() {
-  const f = document.getElementById("faixa");
+  const f = document.getElementById("faixa"), box = document.getElementById("situacao");
   const vem = raios && raios.celulas.filter(c => c.chega_min != null).sort((a, b) => a.chega_min - b.chega_min);
   const centro = estado && estado.celulas.reduce((a, b) => a.dist_km < b.dist_km ? a : b);
   const altos = centro ? Object.keys(FEN).filter(k => centro.janelas["0-24h"][k].modelos === 1) : [];
   if (vem && vem.length) {
     const c = vem[0];
-    f.className = "faixa-aviso critico";
-    f.textContent = c.chega_min === 0 ? "⛈️ Tempestade com raios sobre Chapecó agora."
-      : `⛈️ Tempestade a ${c.dist_km} km (${rumo(azimute(CENTRO, [c.lat, c.lon]))}), chega em ~${c.chega_min} min.`
+    box.className = "situacao critico";
+    f.textContent = c.chega_min === 0 ? "Tempestade com raios sobre Chapecó agora."
+      : `Tempestade a ${c.dist_km} km (${rumo(azimute(CENTRO, [c.lat, c.lon]))}), chega em ~${c.chega_min} min.`
         + (c.salto ? " Salto de raios." : "");
   } else if (altos.length) {
-    f.className = "faixa-aviso atencao";
+    box.className = "situacao atencao";
     f.textContent = "Ambiente favorável hoje a: " + altos.map(k => FEN[k].toLowerCase()).join(", ") + " (todos os modelos concordam). Nenhuma tempestade vindo agora.";
   } else {
-    f.className = "faixa-aviso calmo";
+    box.className = "situacao calmo";
     const perto = raios && raios.celulas[0];
     f.textContent = perto ? `Nenhuma tempestade vindo. Mais perto: ${perto.dist_km} km a ${rumo(azimute(CENTRO, [perto.lat, perto.lon]))}.`
       : "Nenhuma tempestade com raios a até 300 km.";
@@ -250,7 +368,7 @@ function desenharProj() {
     if (camada === "chuva") break;
     if (camada === "microexplosao" && e.tipo !== "microexplosao") continue;
     if (camada === "tornado" && e.tipo !== "tornado") continue;
-    L.circleMarker([e.lat, e.lon], { radius: 3, color: "#fff", weight: 1, fillColor: "#8f8e86", fillOpacity: 0.9 })
+    L.circleMarker([e.lat, e.lon], { radius: 3, color: "#fff", weight: 1, fillColor: "#8494a3", fillOpacity: 0.9 })
       .bindPopup(`<b>${esc(e.data)}</b> · ${esc(e.tipo)}<br>${esc(e.cidade)} · ${esc(e.intensidade)}<br><a href="${esc(e.fonte)}" target="_blank" rel="noopener">fonte</a>`)
       .addTo(cProj);
   }
@@ -266,13 +384,13 @@ function grafico(id, valores, cor, unidade, horas = estado.horas) {
   const el = document.getElementById(id), n = valores.length, W = 340, H = 90, pad = 16;
   const max = unidade === "%" ? 100 : Math.max(1, ...valores.map(v => v || 0)), bw = (W - 30) / n;
   let s = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
-  s += `<line x1="28" y1="${H - pad}" x2="${W}" y2="${H - pad}" stroke="#3a3a36"/>`;
-  s += `<text x="0" y="10" fill="#8f8e86" font-size="9">${Math.round(max)} ${unidade}</text><text x="0" y="${H - pad}" fill="#8f8e86" font-size="9">0</text>`;
+  s += `<line x1="28" y1="${H - pad}" x2="${W}" y2="${H - pad}" stroke="#2a3644"/>`;
+  s += `<text x="24" y="9" text-anchor="end" fill="#8494a3" font-size="9">${Math.round(max)}</text><text x="24" y="${H - pad}" text-anchor="end" fill="#8494a3" font-size="9">0</text><text x="34" y="9" fill="#8494a3" font-size="9">${unidade}</text>`;
   valores.forEach((v, i) => {
     const h = ((v || 0) / max) * (H - pad - 6), x = 30 + i * bw;
     s += `<rect class="b" data-i="${i}" x="${x}" y="${H - pad - h}" width="${Math.max(1, bw - 2)}" height="${Math.max(h, 0)}" rx="1.5" fill="${cor}"/>`;
     s += `<rect data-i="${i}" x="${x}" y="0" width="${bw}" height="${H}" fill="transparent"/>`;
-    if (i % 6 === 0) s += `<text x="${x}" y="${H - 3}" fill="#8f8e86" font-size="9">${horas[i].slice(11, 13)}h</text>`;
+    if (i % 6 === 0) s += `<text x="${x}" y="${H - 3}" fill="#8494a3" font-size="9">${horas[i].slice(11, 13)}h</text>`;
   });
   s += `<line class="marca" x1="0" x2="0" y1="0" y2="${H - pad}" stroke="#f0efec" stroke-width="1"/></svg><div class="dica"></div>`;
   el.innerHTML = s;
@@ -316,8 +434,8 @@ function painelProj() {
   grafico("g-rajada", c.hora.rajada.map(v => v == null ? null : Math.round(v)), css("--rajada"), "km/h");
   document.getElementById("risco-horas").innerHTML = ["microexplosao", "tornado", "vento"].map(f =>
     `<div style="display:flex;align-items:center;gap:1px;margin:3px 0"><span class="mudo" style="width:92px">${FEN[f]}</span>` +
-    c.hora[f].map((v, i) => `<span title="${hh(i)}: ${Math.round(v * 100)}%" style="flex:1;height:12px;border-radius:1px;background:${corRisco(v) || "#2e2e2b"}"></span>`).join("") + "</div>").join("")
-    + `<div class="legenda"><span><i style="background:#2e2e2b"></i>baixo</span><span><i style="background:${css("--atencao")}"></i>1 modelo</span><span><i style="background:${css("--serio")}"></i>atenção</span><span><i style="background:${css("--critico")}"></i>alto nos 3</span></div>`;
+    c.hora[f].map((v, i) => `<span title="${hh(i)}: ${Math.round(v * 100)}%" style="flex:1;height:12px;border-radius:1px;background:${corRisco(v) || "#1d2732"}"></span>`).join("") + "</div>").join("")
+    + `<div class="legenda"><span><i style="background:#1d2732"></i>baixo</span><span><i style="background:${css("--atencao")}"></i>1 modelo</span><span><i style="background:${css("--serio")}"></i>atenção</span><span><i style="background:${css("--critico")}"></i>alto nos 3</span></div>`;
   if (conjunto) {
     grafico("g-chance-chuva", conjunto.chance.chuva_5, css("--chuva"), "%", conjunto.horas);
     grafico("g-chance-rajada", conjunto.chance.rajada_60, css("--rajada"), "%", conjunto.horas);
@@ -369,11 +487,12 @@ document.getElementById("bt-radar").onclick = e => {
 // ---------- análise e relatos ----------
 function mostrarAnalise() {
   const el = document.getElementById("analise");
-  if (!analise) { el.innerHTML = ""; return; }
-  const linhas = [["Agora", analise.ao_vivo], ["Previsão", analise.previsao], ["Relatos", analise.relatos]];
+  if (!analise) { el.innerHTML = '<dd class="carregando">Análise indisponível nesta rodada.</dd>'; return; }
+  // a 1ª frase do "agora" já é a manchete; aqui entram só os complementos (radar etc.)
+  const linhas = [["Agora", analise.ao_vivo.slice(1)], ["Previsão", analise.previsao], ["Relatos", analise.relatos]];
   el.innerHTML = linhas.filter(([, l]) => l && l.length)
-    .map(([t, l]) => `<div><b>${t}</b>${l.map(esc).join(" ")}</div>`).join("")
-    + `<div class="mudo">Análise montada pelo código a partir dos dados abaixo · ${esc(analise.gerado_em.slice(11, 16))}</div>`;
+    .map(([t, l]) => `<dt>${t}</dt><dd>${l.map(esc).join(" ")}</dd>`).join("")
+    + `<div class="rodape">Análise montada pelo código a partir dos dados do painel, às <span class="num">${esc(analise.gerado_em.slice(11, 16))}</span>.</div>`;
 }
 const NOME_RELATO = { tornado: "tornado (órgão citado)", microexplosao: "microexplosão (órgão citado)", vendaval: "vendaval",
   tornado_provavel: "provável tornado", tornado_possivel: "possível tornado", microexplosao_provavel: "provável microexplosão",
@@ -383,7 +502,8 @@ function desenharRelatos() {
   const agora = Date.now();
   for (const r of relatos) {
     if (r.lat == null || agora - new Date(r.hora).getTime() > 48 * 3600 * 1000) continue;
-    L.marker([r.lat, r.lon], { icon: L.divIcon({ className: "", html: "📣", iconSize: [20, 20] }) })
+    L.marker([r.lat, r.lon], { icon: L.divIcon({ className: "pino-relato", iconSize: [24, 24], iconAnchor: [12, 22],
+      html: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z" fill="#fab219" stroke="#0a0e13" stroke-width="1.5"/><circle cx="12" cy="10" r="2.6" fill="#0a0e13"/></svg>' }) })
       .bindPopup(`<b>Relato ${esc(r.hora.slice(8, 10))}/${esc(r.hora.slice(5, 7))} ${esc(r.hora.slice(11, 16))}</b><br>${esc(NOME_RELATO[r.tipo] || r.tipo)}<br><span class="mudo">${esc(r.motivo)}</span>`)
       .addTo(cRelatos);
   }
@@ -392,8 +512,9 @@ function desenharRelatos() {
 // ---------- controle ----------
 function trocarModo(m) {
   modo = m;
-  document.getElementById("aba-vivo").className = m === "vivo" ? "on" : "";
-  document.getElementById("aba-proj").className = m === "proj" ? "on" : "";
+  for (const [id, v] of [["aba-vivo", "vivo"], ["aba-proj", "proj"]]) {
+    const b = document.getElementById(id); b.className = m === v ? "on" : ""; b.setAttribute("aria-selected", m === v);
+  }
   document.getElementById("painel-vivo").hidden = m !== "vivo";
   document.getElementById("painel-proj").hidden = m !== "proj";
   if (m === "vivo") { mapa.removeLayer(cProj); satelite.addTo(mapa); cVivo.addTo(mapa); if (radarCamada && radarLigado) radarCamada.addTo(mapa); }
@@ -408,9 +529,12 @@ for (const [k, n] of Object.entries(CAMADAS)) {
   if (k === camada) b.className = "on"; gc.appendChild(b);
 }
 document.getElementById("hora").oninput = e => { hora = +e.target.value; desenharProj(); };
-document.getElementById("play").onclick = e => {
-  if (tocando) { clearInterval(tocando); tocando = null; e.target.textContent = "▶"; return; }
-  e.target.textContent = "⏸";
+const ICONE_PLAY = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>';
+const ICONE_PAUSA = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>';
+document.getElementById("play").onclick = () => {
+  const bt = document.getElementById("play");
+  if (tocando) { clearInterval(tocando); tocando = null; bt.innerHTML = ICONE_PLAY; bt.setAttribute("aria-label", "Animar as próximas 48 horas"); return; }
+  bt.innerHTML = ICONE_PAUSA; bt.setAttribute("aria-label", "Pausar animação");
   tocando = setInterval(() => { hora = (hora + 1) % estado.horas.length; document.getElementById("hora").value = hora; desenharProj(); }, 700);
 };
 
@@ -434,11 +558,13 @@ async function carregar() {
   const el = document.getElementById("erro");
   el.style.display = erros.length ? "block" : "none";
   el.textContent = erros.length ? "Falha ao atualizar: " + erros.join("; ") + ". Isso NÃO quer dizer sem risco." : "";
-  const partes = [];
-  if (raios) partes.push(`raios até ${raios.ultimo_dado}`);
-  if (estado) partes.push(`previsão de ${estado.gerado_em.slice(11, 16)}`);
-  if (status) partes.push(`última rodada ${status.rodou_em.slice(11, 16)}`);
-  document.getElementById("horarios").textContent = partes.join(" · ");
+  const fr = document.getElementById("frescor");
+  if (raios) {
+    const idade = (Date.now() - new Date(raios.gerado_em).getTime()) / 60000;
+    fr.className = "frescor " + (idade <= 20 ? "vivo" : "velho");
+    document.getElementById("horarios").textContent = idade <= 20
+      ? `ao vivo · raios até ${raios.ultimo_dado}` : `atrasado · raios de ${raios.ultimo_dado}`;
+  } else { fr.className = "frescor velho"; document.getElementById("horarios").textContent = "sem dados de raios"; }
   if (estado) { document.getElementById("hora").max = estado.horas.length - 1; painelProj(); }
   desenharVivo(); listaVivo(); faixaAviso(); mostrarAnalise(); desenharRelatos();
   if (modo === "proj") desenharProj();
