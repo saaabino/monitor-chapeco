@@ -56,6 +56,12 @@ def rodar():
         conjunto = cj.calcular() if _idade_min(f_conj) > PREVISAO_MAX_MIN else json.load(open(f_conj))
     except Exception as e:
         erros.append(f"conjunto: {e}")
+    try:                                   # 15 dias: a cada 6 h basta (modelos rodam 4x/dia)
+        import longo
+        if _idade_min(os.path.join(motor.DADOS, "longo.json")) > 360:
+            longo.calcular()
+    except Exception as e:
+        erros.append(f"15 dias: {e}")
     relatos_lista = []
     try:
         import relatos

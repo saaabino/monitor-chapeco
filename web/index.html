@@ -141,6 +141,21 @@
   .atento li svg { width:20px; height:20px; margin-top:1px; }
   .atento li b { color:var(--txt); font-weight:600; }
   .aviso-fonte { font-size:12.5px; color:var(--atencao); margin-top:6px; }
+  /* 15 dias */
+  .abas-longo { display:flex; gap:4px; margin:0 0 10px; }
+  .abas-longo button { flex:1; padding:5px 8px; min-height:32px; font-size:13px; }
+  .longo { margin:0; padding:0; list-style:none; }
+  .longo li { display:grid; grid-template-columns:72px 20px 64px 1fr; align-items:center; gap:8px; padding:7px 0; border-top:1px solid var(--linha); font-size:13.5px; font-variant-numeric:tabular-nums; }
+  .longo li:first-child { border-top:0; }
+  .longo li.tendencia { opacity:.62; }
+  .longo .dia { color:var(--sub); font-weight:600; text-transform:capitalize; }
+  .longo .dia small { display:block; font-weight:400; color:var(--mudo); font-size:11.5px; }
+  .longo svg { width:18px; height:18px; }
+  .longo .temp b { color:var(--txt); } .longo .temp span { color:var(--mudo); }
+  .longo .det { color:var(--sub); font-size:12.5px; }
+  .longo .det .conf { color:var(--mudo); }
+  .longo .det .conf.baixa { color:var(--atencao); }
+  .longo .separa { display:block; grid-template-columns:none; color:var(--mudo); font-size:12px; padding-top:10px; opacity:1; }
   #instalar { display:none; }
   @media (max-width:860px) {
     header { padding:10px 14px; }
@@ -217,6 +232,14 @@
 
     <!-- PROJEÇÃO -->
     <section id="painel-proj" hidden>
+      <div class="bloco">
+        <h2>Previsão do tempo <small>Chapecó, por dia</small></h2>
+        <div class="abas-longo" id="abas-longo" role="tablist" aria-label="Quantos dias">
+          <button data-n="3" role="tab">3 dias</button><button data-n="7" role="tab" class="on">7 dias</button><button data-n="10" role="tab">10 dias</button><button data-n="15" role="tab">15 dias</button>
+        </div>
+        <ul class="longo" id="longo"><li class="carregando">carregando…</li></ul>
+        <div class="mudo" id="longo-rodape"></div>
+      </div>
       <div class="bloco">
         <h2>Próximos dias em Chapecó</h2>
         <div class="dias" id="dias"></div>
@@ -630,6 +653,36 @@ document.getElementById("play").onclick = () => {
   tocando = setInterval(() => { hora = (hora + 1) % estado.horas.length; document.getElementById("hora").value = hora; desenharProj(); }, 700);
 };
 
+// Previsão por dia (dados/longo.json). Dias 8+ aparecem apagados: é tendência, acerta pouco.
+let longo = null, longoN = 7;
+function desenharLongo() {
+  const el = document.getElementById("longo");
+  if (!longo || !longo.dias.length) { el.innerHTML = '<li class="mudo">Sem previsão por dia agora.</li>'; return; }
+  const sem = new Intl.DateTimeFormat("pt-BR", { weekday: "short" }), dm = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" });
+  let h = "";
+  longo.dias.slice(0, longoN).forEach((d, i) => {
+    if (i === 7) h += '<li class="separa">Daqui pra frente é tendência: pode mudar bastante.</li>';
+    const dt = new Date(d.data + "T12:00:00");
+    const nome = i === 0 ? "hoje" : i === 1 ? "amanhã" : sem.format(dt).replace(".", "");
+    const molhado = (d.chance_chuva ?? 0) >= 50 || (d.chuva_mm ?? 0) >= 1;
+    const ic = molhado ? IC.chuva : (d.rajada ?? 0) >= 60 ? IC.vento : IC.ok;
+    const chuva = d.chance_chuva != null ? `chuva ${d.chance_chuva}%` + (d.chuva_mm >= 1 ? ` · ${d.chuva_mm < 10 ? d.chuva_mm : Math.round(d.chuva_mm)} mm` : "") : (d.chuva_mm >= 1 ? `${d.chuva_mm} mm` : "seco");
+    const forte = d.chance_forte >= 30 ? ` · forte ${d.chance_forte}%` : "";
+    const raj = d.rajada >= 40 ? ` · rajada ${d.rajada} km/h` : "";
+    const conf = d.confianca === "alta" ? "" : `<span class="conf ${d.confianca === "baixa" ? "baixa" : ""}"> · confiança ${d.confianca}${d.discordam ? " (modelos discordam)" : ""}</span>`;
+    h += `<li class="${i >= 7 ? "tendencia" : ""}"><span class="dia">${esc(nome)}<small>${dm.format(dt)}</small></span>${ic}`
+      + `<span class="temp"><b>${d.tmax}°</b> <span>${d.tmin}°</span></span><span class="det">${chuva}${forte}${raj}${conf}</span></li>`;
+  });
+  el.innerHTML = h;
+  document.getElementById("longo-rodape").textContent = `Mediana de ECMWF, GFS e ICON; chance de chuva (≥1 mm no dia) e de chuva forte (≥10 mm) pelas ~80 versões dos modelos. Atualizado ${new Date(longo.gerado_em).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}.`;
+}
+document.getElementById("abas-longo").addEventListener("click", ev => {
+  const b = ev.target.closest("button"); if (!b) return;
+  longoN = +b.dataset.n;
+  for (const x of document.querySelectorAll("#abas-longo button")) { x.classList.toggle("on", x === b); x.setAttribute("aria-selected", x === b); }
+  desenharLongo();
+});
+
 async function pegar(nome) {
   const r = await fetch(DADOS + nome + "?t=" + Math.floor(Date.now() / 60000));
   if (!r.ok) throw new Error(nome + " " + r.status);
@@ -638,15 +691,16 @@ async function pegar(nome) {
 
 async function carregar() {
   const erros = [];
-  const [e, r, s, a, rl, cj, vf, rd] = await Promise.allSettled([pegar("estado.json"), pegar("raios.json"), pegar("status.json"), pegar("analise.json"), pegar("relatos.json"), pegar("conjunto.json"), pegar("verificacao.json"), pegar("radar.json")]);
+  const [e, r, s, a, rl, cj, vf, rd, lg] = await Promise.allSettled([pegar("estado.json"), pegar("raios.json"), pegar("status.json"), pegar("analise.json"), pegar("relatos.json"), pegar("conjunto.json"), pegar("verificacao.json"), pegar("radar.json"), pegar("longo.json")]);
   if (rd.status === "fulfilled") { radar = rd.value; montarRadar(); }
   if (cj.status === "fulfilled") conjunto = cj.value;
+  if (lg.status === "fulfilled") { longo = lg.value; desenharLongo(); }
   if (vf.status === "fulfilled") verif = vf.value;
   if (a.status === "fulfilled") analise = a.value;
   if (rl.status === "fulfilled") relatos = rl.value;
   // só raios e previsão são essenciais; falha de radar, aeroporto etc. aparece no lugar certo, sem susto
   const NOMES_FONTE = { raios: "raios do satélite", "previsão": "previsão dos modelos", radar: "radar da Defesa Civil",
-    METAR: "estação do aeroporto", conjunto: "chances por conjunto", relatos: "relatos do Telegram", "análise": "análise", "verificação": "placar de acerto" };
+    METAR: "estação do aeroporto", conjunto: "chances por conjunto", relatos: "relatos do Telegram", "15 dias": "previsão de 15 dias", "análise": "análise", "verificação": "placar de acerto" };
   if (e.status === "fulfilled") estado = e.value; else erros.push("previsão");
   if (r.status === "fulfilled") raios = r.value; else erros.push("raios");
   const secundarias = [];
