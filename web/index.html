@@ -2,7 +2,14 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f151c">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icone.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Chapecó">
 <title>Monitor Chapecó</title>
 <meta name="description" content="Tempestades ao vivo, raios, chuva e risco de microexplosão e tornado na região de Chapecó.">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -34,7 +41,7 @@
   .mudo { color:var(--mudo); font-size:13px; line-height:1.5; }
 
   /* topo */
-  header { display:flex; align-items:center; gap:10px 16px; flex-wrap:wrap; padding:12px 20px; background:var(--plano); border-bottom:1px solid var(--linha); }
+  header { display:flex; align-items:center; gap:10px 16px; flex-wrap:wrap; padding:calc(12px + env(safe-area-inset-top)) 20px 12px; background:var(--plano); border-bottom:1px solid var(--linha); }
   .marca { display:flex; align-items:center; gap:10px; }
   .marca svg { width:26px; height:26px; flex:none; }
   h1 { font-size:21px; font-weight:700; letter-spacing:-.015em; margin:0; }
@@ -117,6 +124,24 @@
   .rotulo-cel:before { display:none; }
   .pino-relato svg { width:24px; height:24px; filter:drop-shadow(0 2px 3px rgba(0,0,0,.6)); }
 
+  /* próximos dias */
+  .dias { display:grid; grid-template-columns:62px repeat(4, minmax(0,1fr)); gap:4px; font-size:12px; }
+  .dias .cab { color:var(--mudo); text-align:center; padding-bottom:2px; }
+  .dias .rot { color:var(--sub); font-weight:600; font-size:13px; align-self:center; text-transform:capitalize; }
+  .dias .cel { min-height:58px; border-radius:10px; background:var(--plano-2); border:1px solid var(--linha); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; padding:6px 2px; cursor:default; }
+  .dias .cel.vazio { background:transparent; border-style:dashed; color:var(--mudo); }
+  .dias .cel.atencao { border-color:rgba(250,178,25,.55); background:rgba(250,178,25,.10); }
+  .dias .cel.alto { border-color:rgba(208,59,59,.7); background:rgba(208,59,59,.16); }
+  .dias .ics { display:flex; gap:3px; }
+  .dias .ics svg { width:17px; height:17px; }
+  .dias .mm { font-variant-numeric:tabular-nums; color:var(--sub); }
+  .atento { margin:0; padding:0; list-style:none; }
+  .atento li { display:grid; grid-template-columns:22px 1fr; gap:8px; padding:8px 0; border-top:1px solid var(--linha); font-size:14px; color:var(--sub); }
+  .atento li:first-child { border-top:0; padding-top:0; }
+  .atento li svg { width:20px; height:20px; margin-top:1px; }
+  .atento li b { color:var(--txt); font-weight:600; }
+  .aviso-fonte { font-size:12.5px; color:var(--atencao); margin-top:6px; }
+  #instalar { display:none; }
   @media (max-width:860px) {
     header { padding:10px 14px; }
     .abas { order:3; margin:0; width:100%; } .abas button { flex:1; }
@@ -125,7 +150,8 @@
     h1 { font-size:18px; }
     .analise { margin-left:0; grid-template-columns:1fr; gap:0; }
     .analise dt { margin-top:8px; }
-    main { display:block; height:auto; }
+    main { display:flex; flex-direction:column; height:auto; }
+    body.modo-proj aside { order:-1; border-bottom:1px solid var(--linha); }
     #mapa { height:56vh; min-height:320px; }
     aside { border-left:0; }
     aside section > .bloco, aside > .bloco { padding:14px 16px; }
@@ -163,6 +189,7 @@
         <h2>Radar de Chapecó</h2>
         <div class="grupo" style="align-items:center"><button id="bt-radar" class="on">Radar ligado</button><span id="radar-txt" class="sub num"></span></div>
         <div class="mudo">Defesa Civil SC / Epagri-Ciram. Verde é chuva; amarelo e laranja, chuva muito forte. As imagens às vezes chegam com atraso.</div>
+        <div class="aviso-fonte" id="radar-falha" hidden></div>
       </div>
       <div class="bloco">
         <h2>Legenda do mapa</h2>
@@ -172,6 +199,11 @@
           <span><i style="background:#b8441a"></i>10 a 20 min</span>
         </div>
         <div class="mudo">Fundo: satélite infravermelho GOES-19, de cerca de 30 min atrás. Cinza é nuvem baixa ou céu limpo; verde, amarelo, vermelho e branco são topos de nuvem cada vez mais altos e frios. Círculos tracejados: 25, 50 e 100 km de Chapecó. Seta: para onde a tempestade vai na próxima hora.</div>
+      </div>
+      <div class="bloco">
+        <h2>Use como app</h2>
+        <p class="mudo" style="margin:0 0 8px">No Android: toque em <b>Instalar app</b> abaixo ou no menu do navegador. No iPhone: botão Compartilhar &rsaquo; <b>Adicionar à Tela de Início</b>. Os avisos continuam chegando pelo Telegram.</p>
+        <button id="instalar">Instalar app</button>
       </div>
       <div class="bloco">
         <h2>Mande um relato</h2>
@@ -186,6 +218,16 @@
     <!-- PROJEÇÃO -->
     <section id="painel-proj" hidden>
       <div class="bloco">
+        <h2>Próximos dias em Chapecó</h2>
+        <div class="dias" id="dias"></div>
+        <div class="legenda" id="legenda-dias"></div>
+      </div>
+      <div class="bloco">
+        <h2>Fique atento</h2>
+        <ul class="atento" id="atento"></ul>
+      </div>
+      <div class="bloco">
+        <h2>Mapa hora a hora</h2>
         <div class="grupo" id="g-camada"></div>
         <div class="slider">
           <button id="play" class="icone" aria-label="Animar as próximas 48 horas"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg></button>
@@ -194,7 +236,7 @@
         </div>
         <div class="legenda" id="legenda-proj"></div>
       </div>
-      <div class="bloco">
+      <div class="bloco" hidden><!-- substituído por "Fique atento"; mantido para o código antigo -->
         <h2>Chapecó: o que vem</h2>
         <div id="textos-proj"></div>
       </div>
@@ -484,15 +526,64 @@ document.getElementById("bt-radar").onclick = e => {
   quadroRadar();
 };
 
+// ---------- ícones ----------
+const IC = {
+  chuva: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3s-6 6.6-6 11a6 6 0 0 0 12 0c0-4.4-6-11-6-11z" fill="#3987e5"/></svg>',
+  raio: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6z" fill="#fab219"/></svg>',
+  micro: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7c0-2 1.8-3.5 4-3.5.6-1.2 2-2 3.5-2 2.3 0 4 1.6 4 3.6 1.7.2 2.9 1.4 2.9 2.9H5z" fill="#aab7c3"/><path d="M12 10v6m0 0-2.5-2.5M12 16l2.5-2.5M5 20h4m6 0h4M9 20l-2-2m10 2-2-2" stroke="#ec835a" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  tornado: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18M5 8h14M7 12h10M9 16h6M11 20h2" stroke="#d03b3b" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  vento: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h11a3 3 0 1 0-3-3M3 15h15a3 3 0 1 1-3 3M3 12h8" stroke="#aab7c3" stroke-width="2" fill="none" stroke-linecap="round"/></svg>',
+  ok: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="#0ca30c" stroke-width="2"/><path d="m8 12 3 3 5-6" stroke="#0ca30c" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  info: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="#8494a3" stroke-width="2"/><path d="M12 11v6M12 7.5v.5" stroke="#8494a3" stroke-width="2" stroke-linecap="round"/></svg>',
+};
+
+function mostrarDias() {
+  const el = document.getElementById("dias");
+  if (!analise || !analise.periodos || !analise.periodos.length) { el.innerHTML = '<div class="mudo" style="grid-column:1/-1">Previsão por período indisponível agora.</div>'; return; }
+  let h = '<div></div>' + ["Madrugada", "Manhã", "Tarde", "Noite"].map(p => `<div class="cab">${p}</div>`).join("");
+  for (const d of analise.periodos) {
+    h += `<div class="rot">${esc(d.dia)}</div>`;
+    for (const c of d.celulas) {
+      if (!c) { h += '<div class="cel vazio" title="Já passou">–</div>'; continue; }
+      const risco = Math.max(c.micro, c.tornado, c.vento);
+      const cls = risco >= 1 ? "alto" : risco >= 0.5 ? "atencao" : "";
+      const ics = [];
+      if (c.micro >= 0.5) ics.push(IC.micro);
+      if (c.tornado >= 0.5) ics.push(IC.tornado);
+      if (c.vento >= 0.5 || c.rajada >= 60) ics.push(IC.vento);
+      if (c.chuva_max >= 1 || c.chance_chuva_forte >= 30) ics.push(IC.chuva);
+      const dica = `${d.dia} ${c.periodo} (${c.horas}): chuva ${c.chuva_mm} mm no período, rajada até ${c.rajada} km/h, chance de chuva forte ${c.chance_chuva_forte}%`
+        + (c.micro >= 0.5 ? ", atenção microexplosão" : "") + (c.tornado >= 0.5 ? ", atenção tornado" : "");
+      h += `<div class="cel ${cls}" title="${esc(dica)}"><div class="ics">${ics.join("") || IC.ok}</div><div class="mm">${c.chuva_mm >= 0.5 ? c.chuva_mm + " mm" : "seco"}</div></div>`;
+    }
+  }
+  el.innerHTML = h;
+  document.getElementById("legenda-dias").innerHTML =
+    `<span>${IC.micro.replace("<svg", '<svg style="width:15px;height:15px;vertical-align:-3px;margin-right:4px"')}microexplosão</span>`
+    + `<span>${IC.tornado.replace("<svg", '<svg style="width:15px;height:15px;vertical-align:-3px;margin-right:4px"')}tornado</span>`
+    + `<span>${IC.vento.replace("<svg", '<svg style="width:15px;height:15px;vertical-align:-3px;margin-right:4px"')}vento forte</span>`
+    + `<span>${IC.chuva.replace("<svg", '<svg style="width:15px;height:15px;vertical-align:-3px;margin-right:4px"')}chuva</span>`
+    + `<span><i style="background:rgba(250,178,25,.6)"></i>atenção</span><span><i style="background:rgba(208,59,59,.8)"></i>risco alto</span>`;
+  const at = document.getElementById("atento");
+  const fr = analise.previsao || [];
+  at.innerHTML = fr.length ? fr.map(t => {
+    const ic = /microexplos/i.test(t) ? IC.micro : /tornado/i.test(t) ? IC.tornado : /^chuva|chance de chuva/i.test(t) ? IC.chuva : /vento|rajada/i.test(t) ? IC.vento : IC.info;
+    const m = esc(t).replace(/^([^:.]*:)/, "<b>$1</b>");
+    return `<li>${ic}<span>${m}</span></li>`;
+  }).join("") : `<li>${IC.ok}<span>Nada de risco previsto nas próximas 48 h.</span></li>`;
+}
+
 // ---------- análise e relatos ----------
 function mostrarAnalise() {
   const el = document.getElementById("analise");
   if (!analise) { el.innerHTML = '<dd class="carregando">Análise indisponível nesta rodada.</dd>'; return; }
   // a 1ª frase do "agora" já é a manchete; aqui entram só os complementos (radar etc.)
-  const linhas = [["Agora", analise.ao_vivo.slice(1)], ["Previsão", analise.previsao], ["Relatos", analise.relatos]];
+  // topo enxuto: só a 1ª frase de cada aviso (sem as dicas), no máximo 3; o resto fica em "Fique atento"
+  const curtas = (analise.previsao || []).filter(t => !/lembra/.test(t)).map(t => t.split(". ")[0].replace(/\.$/, "") + ".").slice(0, 3);
+  const linhas = [["Agora", analise.ao_vivo.slice(1)], ["Previsão", curtas], ["Relatos", analise.relatos]];
   el.innerHTML = linhas.filter(([, l]) => l && l.length)
     .map(([t, l]) => `<dt>${t}</dt><dd>${l.map(esc).join(" ")}</dd>`).join("")
-    + `<div class="rodape">Análise montada pelo código a partir dos dados do painel, às <span class="num">${esc(analise.gerado_em.slice(11, 16))}</span>.</div>`;
+    + `<div class="rodape">Detalhes e dicas na aba Projeção · análise das <span class="num">${esc(analise.gerado_em.slice(11, 16))}</span>, montada pelo código a partir dos dados.</div>`;
 }
 const NOME_RELATO = { tornado: "tornado (órgão citado)", microexplosao: "microexplosão (órgão citado)", vendaval: "vendaval",
   tornado_provavel: "provável tornado", tornado_possivel: "possível tornado", microexplosao_provavel: "provável microexplosão",
@@ -512,6 +603,7 @@ function desenharRelatos() {
 // ---------- controle ----------
 function trocarModo(m) {
   modo = m;
+  document.body.classList.toggle("modo-proj", m === "proj");
   for (const [id, v] of [["aba-vivo", "vivo"], ["aba-proj", "proj"]]) {
     const b = document.getElementById(id); b.className = m === v ? "on" : ""; b.setAttribute("aria-selected", m === v);
   }
@@ -552,12 +644,25 @@ async function carregar() {
   if (vf.status === "fulfilled") verif = vf.value;
   if (a.status === "fulfilled") analise = a.value;
   if (rl.status === "fulfilled") relatos = rl.value;
+  // só raios e previsão são essenciais; falha de radar, aeroporto etc. aparece no lugar certo, sem susto
+  const NOMES_FONTE = { raios: "raios do satélite", "previsão": "previsão dos modelos", radar: "radar da Defesa Civil",
+    METAR: "estação do aeroporto", conjunto: "chances por conjunto", relatos: "relatos do Telegram", "análise": "análise", "verificação": "placar de acerto" };
   if (e.status === "fulfilled") estado = e.value; else erros.push("previsão");
   if (r.status === "fulfilled") raios = r.value; else erros.push("raios");
-  if (s.status === "fulfilled") { status = s.value; if (status.erros && status.erros.length) erros.push(...status.erros); }
+  const secundarias = [];
+  if (s.status === "fulfilled") {
+    status = s.value;
+    for (const x of status.erros || []) {
+      const fonte = x.split(":")[0].trim();
+      (["raios", "previsão"].includes(fonte) ? erros : secundarias).push(fonte);
+    }
+  }
   const el = document.getElementById("erro");
   el.style.display = erros.length ? "block" : "none";
-  el.textContent = erros.length ? "Falha ao atualizar: " + erros.join("; ") + ". Isso NÃO quer dizer sem risco." : "";
+  el.textContent = erros.length ? `Não deu para atualizar: ${[...new Set(erros)].map(f => NOMES_FONTE[f] || f).join(", ")}. O painel mostra o último dado bom. Isso não quer dizer que não há risco.` : "";
+  const rf = document.getElementById("radar-falha");
+  rf.hidden = !secundarias.includes("radar");
+  rf.textContent = "O radar não respondeu na última rodada; mostrando a última imagem que deu para pegar.";
   const fr = document.getElementById("frescor");
   if (raios) {
     const idade = (Date.now() - new Date(raios.gerado_em).getTime()) / 60000;
@@ -566,9 +671,25 @@ async function carregar() {
       ? `ao vivo · raios até ${raios.ultimo_dado}` : `atrasado · raios de ${raios.ultimo_dado}`;
   } else { fr.className = "frescor velho"; document.getElementById("horarios").textContent = "sem dados de raios"; }
   if (estado) { document.getElementById("hora").max = estado.horas.length - 1; painelProj(); }
-  desenharVivo(); listaVivo(); faixaAviso(); mostrarAnalise(); desenharRelatos();
+  desenharVivo(); listaVivo(); faixaAviso(); mostrarAnalise(); desenharRelatos(); mostrarDias();
   if (modo === "proj") desenharProj();
 }
+// ---------- app no celular ----------
+if ("serviceWorker" in navigator && !["localhost", "127.0.0.1"].includes(location.hostname)) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
+let pedidoInstalar = null;
+addEventListener("beforeinstallprompt", ev => {
+  ev.preventDefault(); pedidoInstalar = ev;
+  document.getElementById("instalar").style.display = "inline-flex";
+});
+document.getElementById("instalar").onclick = async () => {
+  if (!pedidoInstalar) return;
+  pedidoInstalar.prompt(); await pedidoInstalar.userChoice; pedidoInstalar = null;
+  document.getElementById("instalar").style.display = "none";
+};
+addEventListener("online", carregar);
+
 trocarModo(qs.get("aba") === "proj" ? "proj" : "vivo");
 carregar();
 setInterval(() => satelite.setUrl(satUrl()), 10 * 60 * 1000);

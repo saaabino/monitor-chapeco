@@ -58,34 +58,76 @@ def frases_ao_vivo(raios):
     return [f"Nenhuma tempestade com raios a até 300 km nos últimos {raios['janela_min']} min."], "calmo"
 
 
-def frases_previsao(estado):
+DIAS_SEMANA = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
+PERIODOS = [("madrugada", 0, 6), ("manhã", 6, 12), ("tarde", 12, 18), ("noite", 18, 24)]
+DICA = {
+    "microexplosao": "fique atento a nuvem escura chegando rápido e vento forte de repente; guarde objetos soltos",
+    "tornado": "fique atento ao céu e aos avisos; saiba onde se abrigar (cômodo sem janela, no térreo)",
+}
+
+
+def _nome_dia(data, hoje):
+    from datetime import date
+    d = date.fromisoformat(data)
+    delta = (d - hoje).days
+    return "hoje" if delta == 0 else "amanhã" if delta == 1 else DIAS_SEMANA[d.weekday()]
+
+
+def _quando(horas, i0, i1, hoje):
+    """'amanhã entre 12h e 17h' ou 'de hoje 22h até amanhã 3h'."""
+    a, b = horas[i0], horas[i1]
+    fim = int(b[11:13]) + 1
+    if a[:10] == b[:10]:
+        return f"{_nome_dia(a[:10], hoje)} entre {int(a[11:13])}h e {fim}h"
+    return f"de {_nome_dia(a[:10], hoje)} {int(a[11:13])}h até {_nome_dia(b[:10], hoje)} {fim}h"
+
+
+def janelas(serie, limiar, junta=2):
+    """Trechos seguidos com valor >= limiar (junta buracos de até 2 h). Devolve (início, fim, máximo)."""
+    saida = []
+    for i, v in enumerate(serie):
+        if (v or 0) >= limiar:
+            if saida and i - saida[-1][1] <= junta + 1:
+                saida[-1][1] = i
+                saida[-1][2] = max(saida[-1][2], v)
+            else:
+                saida.append([i, i, v])
+    return saida
+
+
+def frases_previsao(estado, conjunto=None):
+    """Frases do tipo 'Amanhã entre 12h e 17h: atenção para microexplosão. Fique atento...'."""
     if not estado:
         return [], "calmo"
+    hoje = datetime.now().date()
+    H = estado["horas"]
     c = min(estado["celulas"], key=lambda c: c["dist_km"])
     saida, nivel = [], "calmo"
     for f in ("microexplosao", "tornado"):
-        serie = c["hora"][f]
-        alto = next((i for i, v in enumerate(serie) if v >= 1), None)
-        aten = next((i for i, v in enumerate(serie) if v >= 0.5), None)
-        if alto is not None:
-            saida.append(f"Ambiente favorável a {NOMES[f]} a partir das {_hora(estado, alto)} (todos os modelos concordam).")
+        js = janelas(c["hora"][f], 0.5)
+        if not js:
+            continue
+        alto = any(mx >= 1 for _, _, mx in js)
+        quando = "; ".join(_quando(H, i0, i1, hoje) for i0, i1, _ in js)
+        if alto:
+            txt = f"Risco ALTO de {NOMES[f]} (todos os modelos concordam): {quando}."
             nivel = "atencao"
-        elif aten is not None:
-            saida.append(f"Atenção para {NOMES[f]} a partir das {_hora(estado, aten)}.")
+        else:
+            txt = f"Atenção para {NOMES[f]}: {quando}."
             nivel = "atencao" if nivel == "calmo" else nivel
+        saida.append(f"{txt} {DICA[f][0].upper() + DICA[f][1:]}.")
     chuva = c["hora"]["chuva"]
-    forte = next((i for i, v in enumerate(chuva) if (v or 0) >= 5), None)
-    pico = max(range(len(chuva)), key=lambda i: chuva[i] or 0)
-    if forte is not None:
-        saida.append(f"Chuva forte (≥5 mm/h) prevista às {_hora(estado, forte)}; pico {chuva[pico]} mm/h às {_hora(estado, pico)}.")
-    elif (chuva[pico] or 0) >= 1:
-        saida.append(f"Chuva moderada: pico {chuva[pico]} mm/h às {_hora(estado, pico)}.")
-    else:
+    for i0, i1, mx in janelas(chuva, 1):
+        pico = max(range(i0, i1 + 1), key=lambda i: chuva[i] or 0)
+        forte = " forte" if mx >= 5 else ""
+        quando = _quando(H, i0, i1, hoje)
+        saida.append(f"Chuva{forte} {quando}, mais intensa às {int(H[pico][11:13])}h ({chuva[pico]} mm/h).")
+    if not janelas(chuva, 1):
         saida.append("Sem chuva relevante prevista nas próximas 48 h.")
     raj = [v or 0 for v in c["hora"]["rajada"]]
     i = max(range(len(raj)), key=lambda i: raj[i])
     if raj[i] >= 60:
-        saida.append(f"Rajada de até {round(raj[i])} km/h prevista às {_hora(estado, i)}.")
+        saida.append(f"Vento: rajada de até {round(raj[i])} km/h {_nome_dia(H[i][:10], hoje)} às {int(H[i][11:13])}h.")
     top = sorted(c["janelas"]["0-24h"]["microexplosao"]["top_analogos"] + c["janelas"]["0-24h"]["tornado"]["top_analogos"],
                  key=lambda a: -a["sim"])
     if top and top[0]["sim"] >= 0.7 and nivel != "calmo":
@@ -93,6 +135,39 @@ def frases_previsao(estado):
         saida.append(f"O tempo previsto lembra {a['data'][8:10]}/{a['data'][5:7]}/{a['data'][:4]} em {a['cidade']} "
                      f"({NOMES[a['tipo']]}, {round(a['sim'] * 100)}% parecido).")
     return saida, nivel
+
+
+def periodos(estado, conjunto):
+    """Grade dia x período (madrugada, manhã, tarde, noite) para o painel."""
+    if not estado:
+        return []
+    hoje = datetime.now().date()
+    H = estado["horas"]
+    c = min(estado["celulas"], key=lambda c: c["dist_km"])
+    chance = {}
+    if conjunto:
+        for i, h in enumerate(conjunto["horas"]):
+            chance[h] = conjunto["chance"]["chuva_5"][i]
+    dias = []
+    for data in sorted({h[:10] for h in H})[:3]:
+        linha = {"dia": _nome_dia(data, hoje), "data": data, "celulas": []}
+        for nome, a, b in PERIODOS:
+            idx = [i for i, h in enumerate(H) if h[:10] == data and a <= int(h[11:13]) < b]
+            if not idx:
+                linha["celulas"].append(None)          # período que já passou ou fora das 48 h
+                continue
+            linha["celulas"].append({
+                "periodo": nome, "horas": f"{a}–{b}h",
+                "micro": max(c["hora"]["microexplosao"][i] for i in idx),
+                "tornado": max(c["hora"]["tornado"][i] for i in idx),
+                "vento": max(c["hora"]["vento"][i] for i in idx),
+                "chuva_mm": round(sum(c["hora"]["chuva"][i] or 0 for i in idx), 1),
+                "chuva_max": max((c["hora"]["chuva"][i] or 0) for i in idx),
+                "rajada": round(max((c["hora"]["rajada"][i] or 0) for i in idx)),
+                "chance_chuva_forte": max((chance.get(H[i]) or 0) for i in idx),
+            })
+        dias.append(linha)
+    return dias
 
 
 def frases_relatos(relatos):
@@ -140,12 +215,13 @@ def frases_radar(radar):
 def montar(estado, raios, relatos, conjunto=None, radar=None):
     vivo, n1 = frases_ao_vivo(raios)
     vivo = vivo + frases_radar(radar)
-    prev, n2 = frases_previsao(estado)
+    prev, n2 = frases_previsao(estado, conjunto)
     prev += frases_conjunto(conjunto, estado)
     ordem = ["calmo", "atencao", "critico"]
     nivel = max(n1, n2, key=ordem.index)
     a = {"gerado_em": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), "nivel": nivel,
-         "ao_vivo": vivo, "previsao": prev, "relatos": frases_relatos(relatos)}
+         "ao_vivo": vivo, "previsao": prev, "relatos": frases_relatos(relatos),
+         "periodos": periodos(estado, conjunto)}
     json.dump(a, open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "dados", "analise.json"), "w"),
               ensure_ascii=False)
     return a
