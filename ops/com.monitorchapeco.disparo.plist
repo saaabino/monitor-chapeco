@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.monitorchapeco.disparo</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/gh</string><string>workflow</string><string>run</string>
+    <string>ciclo.yml</string><string>-R</string><string>saaabino/monitor-chapeco</string>
+  </array>
+  <key>EnvironmentVariables</key><dict><key>HOME</key><string>/Users/joaosabino</string></dict>
+  <key>StartInterval</key><integer>300</integer>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>/Users/joaosabino/Library/Logs/monitor-chapeco-disparo.log</string>
+  <key>StandardErrorPath</key><string>/Users/joaosabino/Library/Logs/monitor-chapeco-disparo.log</string>
+</dict>
+</plist>
