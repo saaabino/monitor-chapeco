@@ -28,7 +28,7 @@
   main { display:grid; grid-template-columns:1fr 380px; height:calc(100vh - 100px); }
   #mapa { height:100%; min-height:420px; background:#0b0b0a; }
   aside { overflow:auto; padding:12px 16px; border-left:1px solid var(--borda); }
-  @media (max-width:860px) { main { grid-template-columns:1fr; height:auto; } #mapa { height:58vh; } aside { border-left:0; } .abas { margin-left:0; } }
+  @media (max-width:860px) { main { display:block; height:auto; } aside { width:100%; } #mapa { height:58vh; } aside { border-left:0; } .abas { margin-left:0; } }
   h2 { font-size:13px; margin:18px 0 6px; color:var(--sub); text-transform:uppercase; letter-spacing:.04em; }
   .grupo { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px; }
   .cel { border:1px solid var(--borda); border-radius:8px; padding:8px 10px; margin:6px 0; background:var(--card); cursor:pointer; }
