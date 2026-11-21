@@ -107,9 +107,41 @@ def frases_relatos(relatos):
     return [f"Relatos nas últimas 6 h: " + ", ".join(partes) + "."]
 
 
-def montar(estado, raios, relatos):
+def frases_conjunto(conj, estado):
+    if not conj:
+        return []
+    saida = []
+    H = conj["horas"]
+    def quando(i):
+        h = H[i]
+        return f"{h[11:13]}h" + ("" if h[:10] == H[0][:10] else f" de {h[8:10]}/{h[5:7]}")
+    for chave, rotulo, minimo in (("chuva_5", "chuva forte (≥5 mm/h)", 10), ("rajada_60", "rajada ≥60 km/h", 10)):
+        s = [x or 0 for x in conj["chance"][chave]]
+        i = max(range(len(s)), key=lambda i: s[i])
+        if s[i] >= minimo:
+            saida.append(f"Chance de {rotulo}: até {s[i]}% às {quando(i)}.")
+    return saida
+
+
+def frases_radar(radar):
+    if not radar:
+        return []
+    if radar["idade_min"] > 30:
+        return [f"Radar de Chapecó: última imagem de {radar['idade_min'] // 60}h{radar['idade_min'] % 60:02d} atrás (atrasado)."]
+    p = radar["eco_forte_mais_perto"]
+    f = "Radar: chovendo em Chapecó agora. " if radar["chove_em_chapeco"] else ""
+    if p and p["dist_km"] <= 150:
+        f += f"Chuva muito forte mais perto a {p['dist_km']} km ({_rumo(_azimute(p['lat'], p['lon']))})."
+    elif not f:
+        f = "Radar: sem chuva muito forte a até 150 km."
+    return [f.strip()]
+
+
+def montar(estado, raios, relatos, conjunto=None, radar=None):
     vivo, n1 = frases_ao_vivo(raios)
+    vivo = vivo + frases_radar(radar)
     prev, n2 = frases_previsao(estado)
+    prev += frases_conjunto(conjunto, estado)
     ordem = ["calmo", "atencao", "critico"]
     nivel = max(n1, n2, key=ordem.index)
     a = {"gerado_em": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), "nivel": nivel,

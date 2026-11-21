@@ -73,6 +73,9 @@
         <span><i style="background:#b8441a"></i>10–20 min</span>
       </div>
       <div class="mudo">Fundo: satélite infravermelho GOES-19, ~30 min atrás. Cinza = nuvem baixa ou céu limpo; verde, amarelo, vermelho e branco = topo de nuvem cada vez mais alto e frio (tempestade forte). Círculos: 25, 50 e 100 km de Chapecó. Seta: para onde a tempestade vai na próxima hora.</div>
+      <h2>Radar de Chapecó</h2>
+      <div class="grupo"><button id="bt-radar" class="on">Radar ligado</button><span id="radar-txt" class="mudo" style="align-self:center"></span></div>
+      <div class="mudo">Defesa Civil SC / Epagri-Ciram. Verde = chuva, amarelo/laranja = chuva muito forte. As imagens às vezes chegam com atraso.</div>
       <h2>Tempestades a até 300 km</h2>
       <div id="lista-cel"></div>
       <h2>Mande um relato</h2>
@@ -82,7 +85,7 @@
       <h2>Como ler</h2>
       <p class="mudo">As tempestades são achadas pelos raios do satélite. A velocidade vem de quanto o grupo de raios andou em 10 min, e pode errar quando a tempestade muda de forma.
       "Salto de raios" = a taxa de raios dobrou, sinal comum antes de vento forte e granizo.
-      Ainda não usa radar (acesso ao radar de Chapecó a verificar); microexplosão dura minutos e pode acontecer sem aviso.</p>
+      O radar ainda só aparece no mapa e na análise; o aviso de "chega em X min" usa os raios. Microexplosão dura minutos e pode acontecer sem aviso.</p>
     </section>
 
     <!-- PROJEÇÃO -->
@@ -96,15 +99,22 @@
       <div class="grafico" id="g-chuva"></div>
       <h2>Rajada prevista (km/h)</h2>
       <div class="grafico" id="g-rajada"></div>
+      <h2>Chance de chuva forte ≥5 mm/h (%, 122 versões dos modelos)</h2>
+      <div class="grafico" id="g-chance-chuva"></div>
+      <h2>Chance de rajada ≥60 km/h (%)</h2>
+      <div class="grafico" id="g-chance-rajada"></div>
+      <div class="mudo">Rajada de tempestade costuma ser mais forte que a dos modelos; a chance de vento subestima microexplosão.</div>
       <h2>Risco por hora</h2>
       <div id="risco-horas"></div>
       <h2>Dias do passado mais parecidos (próx. 24h)</h2>
       <div id="analogos" class="mudo"></div>
+      <h2>Acerto até agora</h2>
+      <div id="acerto" class="mudo"></div>
     </section>
 
     <h2>Importante</h2>
     <p class="mudo">Projeto pessoal, não é previsão oficial. Siga a <a href="https://www.defesacivil.sc.gov.br/" target="_blank" rel="noopener">Defesa Civil de SC</a> (alerta por SMS: mande seu CEP para 40199).
-    Dados: NOAA GOES-19 (raios), NASA GIBS (satélite), Open-Meteo (ECMWF, GFS, ICON), eventos da Wikipédia e notícias.</p>
+    Dados: NOAA GOES-19 (raios), NASA GIBS (satélite), radar Defesa Civil SC / Epagri-Ciram, Open-Meteo (ECMWF, GFS, ICON), eventos da Wikipédia e notícias.</p>
   </aside>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -146,7 +156,7 @@ const cVivo = L.layerGroup(), cProj = L.layerGroup(), cAneis = L.layerGroup().ad
 [25, 50, 100].forEach(r => L.circle(CENTRO, { radius: r * 1000, color: "#8f8e86", weight: 1, dashArray: "4 4", fill: false, interactive: false }).addTo(cAneis));
 L.circleMarker(CENTRO, { radius: 5, color: "#fff", weight: 2, fillColor: "#3987e5", fillOpacity: 1 }).bindTooltip("Chapecó").addTo(cAneis);
 
-let estado = null, raios = null, status = null, analise = null, relatos = [], modo = "vivo", camada = "chuva", hora = 0, tocando = null;
+let estado = null, raios = null, status = null, analise = null, relatos = [], conjunto = null, verif = null, radar = null, radarLigado = true, radarQuadro = 0, radarCamada = null, modo = "vivo", camada = "chuva", hora = 0, tocando = null;
 
 // ---------- ao vivo ----------
 function desenharVivo() {
@@ -252,9 +262,9 @@ function desenharProj() {
   marcarHora();
 }
 
-function grafico(id, valores, cor, unidade) {
+function grafico(id, valores, cor, unidade, horas = estado.horas) {
   const el = document.getElementById(id), n = valores.length, W = 340, H = 90, pad = 16;
-  const max = Math.max(1, ...valores.map(v => v || 0)), bw = (W - 30) / n;
+  const max = unidade === "%" ? 100 : Math.max(1, ...valores.map(v => v || 0)), bw = (W - 30) / n;
   let s = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
   s += `<line x1="28" y1="${H - pad}" x2="${W}" y2="${H - pad}" stroke="#3a3a36"/>`;
   s += `<text x="0" y="10" fill="#8f8e86" font-size="9">${Math.round(max)} ${unidade}</text><text x="0" y="${H - pad}" fill="#8f8e86" font-size="9">0</text>`;
@@ -262,14 +272,14 @@ function grafico(id, valores, cor, unidade) {
     const h = ((v || 0) / max) * (H - pad - 6), x = 30 + i * bw;
     s += `<rect class="b" data-i="${i}" x="${x}" y="${H - pad - h}" width="${Math.max(1, bw - 2)}" height="${Math.max(h, 0)}" rx="1.5" fill="${cor}"/>`;
     s += `<rect data-i="${i}" x="${x}" y="0" width="${bw}" height="${H}" fill="transparent"/>`;
-    if (i % 6 === 0) s += `<text x="${x}" y="${H - 3}" fill="#8f8e86" font-size="9">${estado.horas[i].slice(11, 13)}h</text>`;
+    if (i % 6 === 0) s += `<text x="${x}" y="${H - 3}" fill="#8f8e86" font-size="9">${horas[i].slice(11, 13)}h</text>`;
   });
   s += `<line class="marca" x1="0" x2="0" y1="0" y2="${H - pad}" stroke="#f0efec" stroke-width="1"/></svg><div class="dica"></div>`;
   el.innerHTML = s;
   const dica = el.querySelector(".dica");
   el.querySelectorAll("rect[data-i]").forEach(r => {
     r.onmousemove = ev => {
-      const i = +r.dataset.i, hh = estado.horas[i];
+      const i = +r.dataset.i, hh = horas[i];
       dica.style.display = "block"; dica.textContent = `${hh.slice(8,10)}/${hh.slice(5,7)} ${hh.slice(11,13)}h: ${valores[i] ?? "–"} ${unidade}`;
       const b = el.getBoundingClientRect(); dica.style.left = Math.min(ev.clientX - b.left + 8, b.width - 120) + "px"; dica.style.top = "0px";
     };
@@ -279,7 +289,7 @@ function grafico(id, valores, cor, unidade) {
 }
 
 function marcarHora() {
-  for (const id of ["g-chuva", "g-rajada"]) {
+  for (const id of ["g-chuva", "g-rajada", "g-chance-chuva", "g-chance-rajada"]) {
     const l = document.querySelector(`#${id} .marca`); if (!l) continue;
     const x = 30 + hora * ((340 - 30) / estado.horas.length) + 2;
     l.setAttribute("x1", x); l.setAttribute("x2", x);
@@ -308,10 +318,53 @@ function painelProj() {
     `<div style="display:flex;align-items:center;gap:1px;margin:3px 0"><span class="mudo" style="width:92px">${FEN[f]}</span>` +
     c.hora[f].map((v, i) => `<span title="${hh(i)}: ${Math.round(v * 100)}%" style="flex:1;height:12px;border-radius:1px;background:${corRisco(v) || "#2e2e2b"}"></span>`).join("") + "</div>").join("")
     + `<div class="legenda"><span><i style="background:#2e2e2b"></i>baixo</span><span><i style="background:${css("--atencao")}"></i>1 modelo</span><span><i style="background:${css("--serio")}"></i>atenção</span><span><i style="background:${css("--critico")}"></i>alto nos 3</span></div>`;
+  if (conjunto) {
+    grafico("g-chance-chuva", conjunto.chance.chuva_5, css("--chuva"), "%", conjunto.horas);
+    grafico("g-chance-rajada", conjunto.chance.rajada_60, css("--rajada"), "%", conjunto.horas);
+  }
+  const ac = document.getElementById("acerto");
+  if (!verif || !verif.dias_avaliados) {
+    ac.textContent = "Começou a medir em 21/11/2026. O placar aparece depois do primeiro dia completo e fica confiável com algumas semanas.";
+  } else {
+    const p = verif.placar, l = (n, x) => `${n}: ${x.acertos} acertos, ${x.alarmes_falsos} alarmes falsos, ${x.perdidas} perdidas, ${x.calmos_certos} dias calmos certos`;
+    ac.innerHTML = `${verif.dias_avaliados} dias avaliados.<br>${esc(l("Tempestade a até 15 km", p.tempestade))}<br>${esc(l("Vento ≥60 km/h", p.vento))}<br>`
+      + `Avisos de chegada: ${verif.avisos.confirmados} de ${verif.avisos.julgados} confirmados por raios.`;
+  }
   const top = c.janelas["0-24h"].microexplosao.top_analogos.concat(c.janelas["0-24h"].tornado.top_analogos)
     .sort((a, b) => b.sim - a.sim).slice(0, 4);
   document.getElementById("analogos").innerHTML = top.map(a => `${a.data} · ${esc(a.cidade)} (${a.tipo}) · ${Math.round(a.sim * 100)}% parecido`).join("<br>") || "–";
 }
+
+// ---------- radar ----------
+function montarRadar() {
+  if (!radar || !radar.imagens.length) return;
+  const [o, s, l, n] = radar.extensao, lim = [[s, o], [n, l]];
+  if (!radarCamada) {
+    radarCamada = L.imageOverlay(radar.imagens[radar.imagens.length - 1].url, lim, { opacity: 0.7, interactive: false });
+    radarLigado = radar.idade_min <= 60;          // imagem velha começa desligada (dá para ligar no botão)
+    const bt = document.getElementById("bt-radar");
+    bt.className = radarLigado ? "on" : ""; bt.textContent = radarLigado ? "Radar ligado" : "Radar desligado";
+    satelite.setOpacity(radarLigado ? 0.25 : 0.5);
+    if (radarLigado && modo === "vivo") radarCamada.addTo(mapa);
+  }
+}
+function quadroRadar() {
+  if (!radar || !radarCamada) return;
+  const imgs = radar.imagens;
+  radarQuadro = (radarQuadro + 1) % (imgs.length + 2);          // pausa 2 quadros na imagem mais nova
+  const i = Math.min(radarQuadro, imgs.length - 1);
+  radarCamada.setUrl(imgs[i].url);
+  const h = imgs[i].hora, atraso = radar.idade_min > 30 ? ` · ATRASADO ${Math.floor(radar.idade_min / 60)}h${String(radar.idade_min % 60).padStart(2, "0")}` : "";
+  document.getElementById("radar-txt").textContent = `${h.slice(8, 10)}/${h.slice(5, 7)} ${h.slice(11, 16)}${atraso}`;
+}
+setInterval(quadroRadar, 700);
+document.getElementById("bt-radar").onclick = e => {
+  radarLigado = !radarLigado;
+  e.target.className = radarLigado ? "on" : ""; e.target.textContent = radarLigado ? "Radar ligado" : "Radar desligado";
+  if (radarCamada) { if (radarLigado && modo === "vivo") radarCamada.addTo(mapa); else mapa.removeLayer(radarCamada); }
+  satelite.setOpacity(radarLigado ? 0.25 : 0.5);
+  quadroRadar();
+};
 
 // ---------- análise e relatos ----------
 function mostrarAnalise() {
@@ -343,8 +396,8 @@ function trocarModo(m) {
   document.getElementById("aba-proj").className = m === "proj" ? "on" : "";
   document.getElementById("painel-vivo").hidden = m !== "vivo";
   document.getElementById("painel-proj").hidden = m !== "proj";
-  if (m === "vivo") { mapa.removeLayer(cProj); satelite.addTo(mapa); cVivo.addTo(mapa); }
-  else { mapa.removeLayer(cVivo); mapa.removeLayer(satelite); cProj.addTo(mapa); desenharProj(); }
+  if (m === "vivo") { mapa.removeLayer(cProj); satelite.addTo(mapa); cVivo.addTo(mapa); if (radarCamada && radarLigado) radarCamada.addTo(mapa); }
+  else { mapa.removeLayer(cVivo); mapa.removeLayer(satelite); if (radarCamada) mapa.removeLayer(radarCamada); cProj.addTo(mapa); desenharProj(); }
 }
 document.getElementById("aba-vivo").onclick = () => trocarModo("vivo");
 document.getElementById("aba-proj").onclick = () => trocarModo("proj");
@@ -369,7 +422,10 @@ async function pegar(nome) {
 
 async function carregar() {
   const erros = [];
-  const [e, r, s, a, rl] = await Promise.allSettled([pegar("estado.json"), pegar("raios.json"), pegar("status.json"), pegar("analise.json"), pegar("relatos.json")]);
+  const [e, r, s, a, rl, cj, vf, rd] = await Promise.allSettled([pegar("estado.json"), pegar("raios.json"), pegar("status.json"), pegar("analise.json"), pegar("relatos.json"), pegar("conjunto.json"), pegar("verificacao.json"), pegar("radar.json")]);
+  if (rd.status === "fulfilled") { radar = rd.value; montarRadar(); }
+  if (cj.status === "fulfilled") conjunto = cj.value;
+  if (vf.status === "fulfilled") verif = vf.value;
   if (a.status === "fulfilled") analise = a.value;
   if (rl.status === "fulfilled") relatos = rl.value;
   if (e.status === "fulfilled") estado = e.value; else erros.push("previsão");

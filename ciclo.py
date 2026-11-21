@@ -43,6 +43,19 @@ def rodar():
         erros.append(f"previsão: {e}")
         if os.path.exists(f_estado):        # mantém a última previsão boa no painel
             estado = json.load(open(f_estado))
+    radar = None
+    try:
+        import radar as rd
+        radar = rd.calcular()
+    except Exception as e:
+        erros.append(f"radar: {e}")
+    conjunto = None
+    f_conj = os.path.join(motor.DADOS, "conjunto.json")
+    try:
+        import conjunto as cj
+        conjunto = cj.calcular() if _idade_min(f_conj) > PREVISAO_MAX_MIN else json.load(open(f_conj))
+    except Exception as e:
+        erros.append(f"conjunto: {e}")
     relatos_lista = []
     try:
         import relatos
@@ -52,10 +65,17 @@ def rodar():
     analise = None
     try:
         import analise as an
-        analise = an.montar(estado, raios, relatos_lista)
+        analise = an.montar(estado, raios, relatos_lista, conjunto, radar)
     except Exception as e:
         erros.append(f"análise: {e}")
     alerta.processar(estado, raios, analise)
+    try:
+        import verificacao as vf
+        vf.registrar_previsao(estado, conjunto)
+        vf.registrar_observacao(raios, relatos_lista, erros)
+        vf.avaliar()
+    except Exception as e:
+        erros.append(f"verificação: {e}")
     json.dump({"rodou_em": time.strftime("%Y-%m-%dT%H:%M:%S"), "erros": erros},
               open(os.path.join(motor.DADOS, "status.json"), "w"), ensure_ascii=False)
     print("ok" if not erros else erros)

@@ -150,6 +150,9 @@ def processar(estado, raios, analise=None):
         r = decidir_tempestade(raios, enviados, agora)
         if r:
             enviar(texto_tempestade(r[0], estado) + rodape)
+            if r[1] == "degrau":
+                import verificacao
+                verificacao.registrar_aviso(r[0]["chega_min"])
     hora = int(time.strftime("%H"))
     for h in BOLETIM_HORAS:
         chave = f"boletim_{h}"
