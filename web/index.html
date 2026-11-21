@@ -24,8 +24,11 @@
   button.on { border-color:var(--acento); background:#16324a; }
   .faixa-aviso { padding:10px 16px; font-weight:600; border-bottom:1px solid var(--borda); }
   .faixa-aviso.critico { background:#4a1717; } .faixa-aviso.atencao { background:#3d3210; } .faixa-aviso.calmo { background:#132a13; font-weight:500; }
+  .analise { padding:8px 16px 10px; border-bottom:1px solid var(--borda); font-size:14px; }
+  .analise b { color:var(--sub); font-size:12px; text-transform:uppercase; letter-spacing:.04em; margin-right:6px; }
+  .analise div { margin:2px 0; }
   .erro { background:#4a1717; padding:8px 16px; display:none; }
-  main { display:grid; grid-template-columns:1fr 380px; height:calc(100vh - 100px); }
+  main { display:grid; grid-template-columns:1fr 380px; height:calc(100vh - 100px); min-height:520px; }
   #mapa { height:100%; min-height:420px; background:#0b0b0a; }
   aside { overflow:auto; padding:12px 16px; border-left:1px solid var(--borda); }
   @media (max-width:860px) { main { display:block; height:auto; } aside { width:100%; } #mapa { height:58vh; } aside { border-left:0; } .abas { margin-left:0; } }
@@ -57,6 +60,7 @@
   <div class="abas"><button id="aba-vivo" class="on">Ao vivo</button><button id="aba-proj">Projeção</button></div>
 </header>
 <div class="faixa-aviso calmo" id="faixa">…</div>
+<div class="analise" id="analise"></div>
 <div class="erro" id="erro"></div>
 <main>
   <div id="mapa"></div>
@@ -71,6 +75,10 @@
       <div class="mudo">Fundo: satélite infravermelho GOES-19, ~30 min atrás. Cinza = nuvem baixa ou céu limpo; verde, amarelo, vermelho e branco = topo de nuvem cada vez mais alto e frio (tempestade forte). Círculos: 25, 50 e 100 km de Chapecó. Seta: para onde a tempestade vai na próxima hora.</div>
       <h2>Tempestades a até 300 km</h2>
       <div id="lista-cel"></div>
+      <h2>Mande um relato</h2>
+      <p class="mudo">No Telegram, fale com <a href="https://t.me/Tempocco_bot" target="_blank" rel="noopener">@Tempocco_bot</a>:
+      <code>/relato o que você viu</code> e depois a localização. O Jev (IA da TypeSafe) lê o texto e o código classifica.
+      Relatos aparecem no mapa como 📣 por 48 h. O texto vai para a TypeSafe; o painel não mostra texto nem nome.</p>
       <h2>Como ler</h2>
       <p class="mudo">As tempestades são achadas pelos raios do satélite. A velocidade vem de quanto o grupo de raios andou em 10 min, e pode errar quando a tempestade muda de forma.
       "Salto de raios" = a taxa de raios dobrou, sinal comum antes de vento forte e granizo.
@@ -134,11 +142,11 @@ function horaSatelite() {
 }
 const satUrl = () => `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GOES-East_ABI_Band13_Clean_Infrared/default/${horaSatelite()}/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png`;
 const satelite = L.tileLayer(satUrl(), { maxNativeZoom: 6, maxZoom: 12, opacity: 0.5, attribution: "NASA GIBS / GOES-19" });
-const cVivo = L.layerGroup(), cProj = L.layerGroup(), cAneis = L.layerGroup().addTo(mapa);
+const cVivo = L.layerGroup(), cProj = L.layerGroup(), cAneis = L.layerGroup().addTo(mapa), cRelatos = L.layerGroup().addTo(mapa);
 [25, 50, 100].forEach(r => L.circle(CENTRO, { radius: r * 1000, color: "#8f8e86", weight: 1, dashArray: "4 4", fill: false, interactive: false }).addTo(cAneis));
 L.circleMarker(CENTRO, { radius: 5, color: "#fff", weight: 2, fillColor: "#3987e5", fillOpacity: 1 }).bindTooltip("Chapecó").addTo(cAneis);
 
-let estado = null, raios = null, status = null, modo = "vivo", camada = "chuva", hora = 0, tocando = null;
+let estado = null, raios = null, status = null, analise = null, relatos = [], modo = "vivo", camada = "chuva", hora = 0, tocando = null;
 
 // ---------- ao vivo ----------
 function desenharVivo() {
@@ -200,7 +208,7 @@ function faixaAviso() {
         + (c.salto ? " Salto de raios." : "");
   } else if (altos.length) {
     f.className = "faixa-aviso atencao";
-    f.textContent = "Ambiente favorável hoje a: " + altos.map(k => FEN[k].toLowerCase()).join(", ") + " (os 3 modelos concordam). Nenhuma tempestade vindo agora.";
+    f.textContent = "Ambiente favorável hoje a: " + altos.map(k => FEN[k].toLowerCase()).join(", ") + " (todos os modelos concordam). Nenhuma tempestade vindo agora.";
   } else {
     f.className = "faixa-aviso calmo";
     const perto = raios && raios.celulas[0];
@@ -305,6 +313,29 @@ function painelProj() {
   document.getElementById("analogos").innerHTML = top.map(a => `${a.data} · ${esc(a.cidade)} (${a.tipo}) · ${Math.round(a.sim * 100)}% parecido`).join("<br>") || "–";
 }
 
+// ---------- análise e relatos ----------
+function mostrarAnalise() {
+  const el = document.getElementById("analise");
+  if (!analise) { el.innerHTML = ""; return; }
+  const linhas = [["Agora", analise.ao_vivo], ["Previsão", analise.previsao], ["Relatos", analise.relatos]];
+  el.innerHTML = linhas.filter(([, l]) => l && l.length)
+    .map(([t, l]) => `<div><b>${t}</b>${l.map(esc).join(" ")}</div>`).join("")
+    + `<div class="mudo">Análise montada pelo código a partir dos dados abaixo · ${esc(analise.gerado_em.slice(11, 16))}</div>`;
+}
+const NOME_RELATO = { tornado: "tornado (órgão citado)", microexplosao: "microexplosão (órgão citado)", vendaval: "vendaval",
+  tornado_provavel: "provável tornado", tornado_possivel: "possível tornado", microexplosao_provavel: "provável microexplosão",
+  microexplosao_possivel: "possível microexplosão", nao_e_vento: "sem dano por vento", indefinido: "indefinido" };
+function desenharRelatos() {
+  cRelatos.clearLayers();
+  const agora = Date.now();
+  for (const r of relatos) {
+    if (r.lat == null || agora - new Date(r.hora).getTime() > 48 * 3600 * 1000) continue;
+    L.marker([r.lat, r.lon], { icon: L.divIcon({ className: "", html: "📣", iconSize: [20, 20] }) })
+      .bindPopup(`<b>Relato ${esc(r.hora.slice(8, 10))}/${esc(r.hora.slice(5, 7))} ${esc(r.hora.slice(11, 16))}</b><br>${esc(NOME_RELATO[r.tipo] || r.tipo)}<br><span class="mudo">${esc(r.motivo)}</span>`)
+      .addTo(cRelatos);
+  }
+}
+
 // ---------- controle ----------
 function trocarModo(m) {
   modo = m;
@@ -338,7 +369,9 @@ async function pegar(nome) {
 
 async function carregar() {
   const erros = [];
-  const [e, r, s] = await Promise.allSettled([pegar("estado.json"), pegar("raios.json"), pegar("status.json")]);
+  const [e, r, s, a, rl] = await Promise.allSettled([pegar("estado.json"), pegar("raios.json"), pegar("status.json"), pegar("analise.json"), pegar("relatos.json")]);
+  if (a.status === "fulfilled") analise = a.value;
+  if (rl.status === "fulfilled") relatos = rl.value;
   if (e.status === "fulfilled") estado = e.value; else erros.push("previsão");
   if (r.status === "fulfilled") raios = r.value; else erros.push("raios");
   if (s.status === "fulfilled") { status = s.value; if (status.erros && status.erros.length) erros.push(...status.erros); }
@@ -351,7 +384,7 @@ async function carregar() {
   if (status) partes.push(`última rodada ${status.rodou_em.slice(11, 16)}`);
   document.getElementById("horarios").textContent = partes.join(" · ");
   if (estado) { document.getElementById("hora").max = estado.horas.length - 1; painelProj(); }
-  desenharVivo(); listaVivo(); faixaAviso();
+  desenharVivo(); listaVivo(); faixaAviso(); mostrarAnalise(); desenharRelatos();
   if (modo === "proj") desenharProj();
 }
 trocarModo(qs.get("aba") === "proj" ? "proj" : "vivo");

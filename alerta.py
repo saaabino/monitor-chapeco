@@ -49,7 +49,7 @@ def texto(f, c):
     i = j["indices"]
     linhas = [
         f"⚠️ Ambiente favorável a {NOMES[f]} perto de Chapecó (próximas 24h)",
-        f"Os {len(j['por_modelo'])} modelos concordam (ECMWF, GFS, ICON).",
+        f"Os {len(j['por_modelo'])} modelos disponíveis concordam ({', '.join(config.MODELOS[m] for m in j['por_modelo'])}).",
         f"CAPE {i['cape']:.0f} J/kg · Δθe {i['te']:.0f} K · cisalhamento 0-6 km {i['shear06']:.0f} m/s"
         if None not in (i["cape"], i["te"], i["shear06"]) else "",
     ]
@@ -70,17 +70,42 @@ def enviar(msg):
 
 
 # ---------- tempestade ao vivo (raios) ----------
-CHEGA_MAX_MIN = 90        # avisa se a célula chega a Chapecó em até 90 min
-TAXA_MIN = 2              # e tem pelo menos 2 raios/min
-SALTO_PERTO_KM = 60       # salto de raios a até 60 km também avisa
-INTERVALO_TEMPESTADE_MIN = 60   # no máximo um aviso de tempestade por hora
+# Quanto mais perto, mais avisos: um aviso a cada vez que a tempestade cruza um degrau.
+DEGRAUS_MIN = [90, 60, 30, 15, 0]   # minutos até chegar (0 = em cima de Chapecó)
+TAXA_MIN = 2                        # célula precisa de pelo menos 2 raios/min
+SALTO_PERTO_KM = 60                 # salto de raios a até 60 km também avisa
+SALTO_INTERVALO_MIN = 30            # no máximo um aviso de salto a cada 30 min
+ESQUECE_MIN = 60                    # sem tempestade vindo por 60 min, recomeça os degraus
+BOLETIM_HORAS = (7, 19)             # resumo do dia às 7h e às 19h
 
 
-def decidir_tempestade(raios):
-    vem = [c for c in raios["celulas"] if c["chega_min"] is not None
-           and c["chega_min"] <= CHEGA_MAX_MIN and c["raios_por_min"] >= TAXA_MIN]
+def degrau(chega_min):
+    """Menor degrau que a tempestade já alcançou (ex.: chega em 25 min -> degrau 30)."""
+    return min(d for d in DEGRAUS_MIN if chega_min <= d) if chega_min <= DEGRAUS_MIN[0] else None
+
+
+def decidir_tempestade(raios, enviados, agora):
+    """Devolve (célula, motivo) se precisa avisar agora, e atualiza o registro de enviados."""
+    vem = sorted([c for c in raios["celulas"] if c["chega_min"] is not None
+                  and c["chega_min"] <= DEGRAUS_MIN[0] and c["raios_por_min"] >= TAXA_MIN],
+                 key=lambda c: c["chega_min"])
+    if vem:
+        c = vem[0]
+        d = degrau(c["chega_min"])
+        ultimo = enviados.get("degrau")
+        recente = agora - enviados.get("degrau_ts", 0) < ESQUECE_MIN * 60
+        enviados["vem_ts"] = agora
+        if ultimo is None or not recente or d < ultimo:
+            enviados["degrau"], enviados["degrau_ts"] = d, agora
+            return c, "degrau"
+        return None
+    if agora - enviados.get("vem_ts", 0) >= ESQUECE_MIN * 60:
+        enviados.pop("degrau", None)            # passou: a próxima começa do zero
     salto = [c for c in raios["celulas"] if c["salto"] and c["dist_km"] <= SALTO_PERTO_KM]
-    return sorted({id(c): c for c in vem + salto}.values(), key=lambda c: c["chega_min"] if c["chega_min"] is not None else 999)
+    if salto and agora - enviados.get("salto_ts", 0) >= SALTO_INTERVALO_MIN * 60:
+        enviados["salto_ts"] = agora
+        return min(salto, key=lambda c: c["dist_km"]), "salto"
+    return None
 
 
 def risco_hoje(estado):
@@ -92,11 +117,12 @@ def texto_tempestade(c, estado):
     import raios as r
     linhas = []
     if c["chega_min"] == 0:
-        linhas.append("⛈️ Tempestade com raios EM CHAPECÓ agora")
+        linhas.append("🔴 Tempestade com raios EM CHAPECÓ agora")
     elif c["chega_min"] is not None:
-        linhas.append(f"⛈️ Tempestade a {c['dist_km']} km, chega em Chapecó em ~{c['chega_min']} min")
+        icone = "🔴" if c["chega_min"] <= 15 else "🟠" if c["chega_min"] <= 30 else "🟡"
+        linhas.append(f"{icone} Tempestade a {c['dist_km']} km, chega em Chapecó em ~{c['chega_min']} min")
     else:
-        linhas.append(f"⛈️ Tempestade a {c['dist_km']} km de Chapecó")
+        linhas.append(f"⚡ Salto de raios em tempestade a {c['dist_km']} km de Chapecó")
     if c["vel_kmh"]:
         linhas.append(f"Andando a {c['vel_kmh']} km/h para {r.direcao(c['rumo'])}.")
     linhas.append(f"Raios: {c['raios_por_min']}/min (antes {c['raios_por_min_antes']}/min)"
@@ -108,22 +134,29 @@ def texto_tempestade(c, estado):
     return "\n".join(linhas)
 
 
-def processar(estado, raios):
+def processar(estado, raios, analise=None):
     """Decide e manda os avisos. Guarda o que já foi enviado em dados/alertas_enviados.json."""
     enviados = json.load(open(ENVIADOS)) if os.path.exists(ENVIADOS) else {}
     hoje = time.strftime("%Y-%m-%d")
+    agora = time.time()
     site = os.environ.get("SITE_URL", "")
+    rodape = f"\n{site}" if site else ""
     if estado:
         for f, c in decidir(estado):
             if enviados.get(f) != hoje:
-                enviar(texto(f, c) + (f"\n{site}" if site else ""))
+                enviar(texto(f, c) + rodape)
                 enviados[f] = hoje
     if raios:
-        cand = decidir_tempestade(raios)
-        ultimo = enviados.get("tempestade_ts", 0)
-        if cand and time.time() - ultimo >= INTERVALO_TEMPESTADE_MIN * 60:
-            enviar(texto_tempestade(cand[0], estado) + (f"\n{site}" if site else ""))
-            enviados["tempestade_ts"] = time.time()
+        r = decidir_tempestade(raios, enviados, agora)
+        if r:
+            enviar(texto_tempestade(r[0], estado) + rodape)
+    hora = int(time.strftime("%H"))
+    for h in BOLETIM_HORAS:
+        chave = f"boletim_{h}"
+        if analise and hora >= h and enviados.get(chave) != hoje and hora < h + 2:
+            import analise as an
+            enviar(f"📋 Boletim {h}h · Monitor Chapecó\n" + an.texto(analise) + rodape)
+            enviados[chave] = hoje
     json.dump(enviados, open(ENVIADOS, "w"))
 
 

@@ -2,7 +2,7 @@ name: ciclo
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # a cada 10 min (o GitHub pode atrasar alguns minutos)
+    - cron: "*/10 * * * *"   # a cada 10 min (o GitHub pode atrasar; o Mac também dispara a cada 5 min)
   workflow_dispatch:
 
 permissions:
@@ -21,6 +21,7 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       SITE_URL: ${{ vars.SITE_URL }}
+      TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -48,7 +49,7 @@ jobs:
           cd dados
           rm -rf .git
           git init -q -b dados
-          for f in estado.json raios.json status.json alertas_enviados.json ambiente_eventos.json; do
+          for f in estado.json raios.json status.json alertas_enviados.json ambiente_eventos.json analise.json relatos.json telegram_offset.json; do
             [ -f "$f" ] && git add -f "$f"
           done
           git -c user.name="monitor-bot" -c user.email="monitor-bot@users.noreply.github.com" commit -qm "dados $(date '+%Y-%m-%d %H:%M')"

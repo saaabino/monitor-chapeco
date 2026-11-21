@@ -87,15 +87,16 @@ def decidir(resp):
     return "indefinido", "relato não deixa claro"
 
 
-def perguntar(relato):
+def perguntar(relato, mostrar=True):
     chave = os.environ.get("TYPESAFE_API_KEY")
     if not chave:
         raise RuntimeError("falta TYPESAFE_API_KEY")
     pedido = {"model": MODELO, "state": {"relato": relato}, "questions": PERGUNTAS}
-    print("PEDIDO ENVIADO:\n" + json.dumps(pedido, ensure_ascii=False, indent=1))
+    if mostrar:
+        print("PEDIDO ENVIADO:\n" + json.dumps(pedido, ensure_ascii=False, indent=1))
     req = urllib.request.Request(
         "https://api.typesafe.ai/v1/systemone", data=json.dumps(pedido).encode(),
-        headers={"Authorization": f"Bearer {chave}", "Content-Type": "application/json"})
+        headers={"User-Agent": "monitor-chapeco/1.0", "Authorization": f"Bearer {chave}", "Content-Type": "application/json"})
     # falha de rede ou da API sobe como erro; nunca vira "não"
     with urllib.request.urlopen(req, timeout=60) as r:
         return json.load(r)

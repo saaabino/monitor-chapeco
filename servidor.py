@@ -7,7 +7,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 PORTA = int(os.environ.get("PORTA", "8765"))
-PUBLICOS = {"estado.json", "raios.json", "status.json"}
+PUBLICOS = {"estado.json", "raios.json", "status.json", "analise.json", "relatos.json"}
 
 
 class Painel(SimpleHTTPRequestHandler):
