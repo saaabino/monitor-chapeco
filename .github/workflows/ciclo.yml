@@ -2,11 +2,12 @@ name: ciclo
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # a cada 10 min (o GitHub pode atrasar; o Mac também dispara a cada 5 min)
+    - cron: "*/10 * * * *"   # reserva: reinicia a corrente se ela parar (o Mac também dispara a cada 5 min)
   workflow_dispatch:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: ciclo
@@ -54,3 +55,11 @@ jobs:
           done
           git -c user.name="monitor-bot" -c user.email="monitor-bot@users.noreply.github.com" commit -qm "dados $(date '+%Y-%m-%d %H:%M')"
           git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" dados
+
+      - name: Agendar a próxima rodada (corrente que não depende do Mac nem do cron)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sleep 200
+          gh workflow run ciclo.yml -R "${{ github.repository }}"
